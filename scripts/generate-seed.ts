@@ -3,18 +3,20 @@
  * 由 db/demo-scenario.json 產生 db/seed.sql。
  * 日期會依「執行當下的今天」換算，所以 demo 前重新跑一次就永遠是未來 7 天的資料。
  *
- * 用法：node scripts/generate-seed.mjs
+ * 用法：npx tsx scripts/generate-seed.ts
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+// 刻意 import 正式程式碼的電量模型，確保驗證與 runtime 用的是同一套算法
+import { isLowBattery, simulateWeek } from "../lib/battery";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scenario = JSON.parse(readFileSync(join(root, "db/demo-scenario.json"), "utf8"));
 
 const TZ_OFFSET = "+08:00"; // Asia/Taipei
 
-function taipeiToday() {
+function taipeiToday(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Taipei",
     year: "numeric",
@@ -23,7 +25,7 @@ function taipeiToday() {
   }).format(new Date());
 }
 
-function addDays(dateStr, days) {
+function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00${TZ_OFFSET}`);
   d.setUTCDate(d.getUTCDate() + days);
   return new Intl.DateTimeFormat("en-CA", {
@@ -34,7 +36,7 @@ function addDays(dateStr, days) {
   }).format(d);
 }
 
-const q = (v) => (v === null || v === undefined ? "NULL" : `'${String(v).replace(/'/g, "''")}'`);
+const q = (v: unknown) => (v === null || v === undefined ? "NULL" : `'${String(v).replace(/'/g, "''")}'`);
 
 const today = taipeiToday();
 const now = new Date().toISOString();
@@ -60,7 +62,7 @@ const lines = [
   "",
 ];
 
-activities.forEach((a, i) => {
+activities.forEach((a: any, i: number) => {
   const date = addDays(today, a.dayOffset);
   const scheduledAt = new Date(`${date}T${a.time}:00${TZ_OFFSET}`).toISOString();
   lines.push(
@@ -83,21 +85,26 @@ activities.forEach((a, i) => {
   );
 });
 
-// 驗證：算出每天剩餘電量，確認低電量日與 demo-scenario.json 的預期一致
-const perDay = new Map();
-for (const a of activities) {
+// 驗證：用正式的電量模型（含跨日累積）算出每天電量，確認與 demo-scenario.json 的預期一致
+const perDay = new Map<number, number>();
+for (const a of activities as any[]) {
   perDay.set(a.dayOffset, (perDay.get(a.dayOffset) ?? 0) + a.predictedDrain);
 }
-const lowDays = [];
-for (let i = 0; i < 7; i++) {
-  const remaining = Math.max(0, profile.baseBatteryCapacity - (perDay.get(i) ?? 0));
-  if (remaining < 30) lowDays.push(i);
-}
+const drains = Array.from({ length: 7 }, (_, i) => perDay.get(i) ?? 0);
+const battery = simulateWeek(drains, profile.baseBatteryCapacity);
+const lowDays = battery.map((b, i) => (isLowBattery(b.remainingBattery) ? i : -1)).filter((i) => i >= 0);
 
 writeFileSync(join(root, "db/seed.sql"), lines.join("\n"));
 
 console.log(`已產生 db/seed.sql（基準日 ${today}，共 ${activities.length} 筆活動）`);
-console.log(`低電量日 D+[${lowDays.join(", ")}]，預期 D+[${scenario.expected.lowBatteryDayOffsets.join(", ")}]`);
+console.log("\n每日電量（含跨日累積）：");
+battery.forEach((b, i) =>
+  console.log(
+    `  D+${i}  起床 ${String(b.startBattery).padStart(2)}%  消耗 ${String(drains[i]).padStart(2)}` +
+      `  ->  剩 ${String(b.remainingBattery).padStart(2)}%${isLowBattery(b.remainingBattery) ? "  ⚠" : ""}`
+  )
+);
+console.log(`\n低電量日 D+[${lowDays.join(", ")}]，預期 D+[${scenario.expected.lowBatteryDayOffsets.join(", ")}]`);
 if (JSON.stringify(lowDays) !== JSON.stringify(scenario.expected.lowBatteryDayOffsets)) {
   console.error("✗ 低電量日與 demo-scenario.json 的預期不符，請檢查資料設計");
   process.exit(1);

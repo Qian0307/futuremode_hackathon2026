@@ -11,12 +11,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply social-battery-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply social-battery-db --remote",
-    "db:seed:local": "node scripts/generate-seed.mjs && wrangler d1 execute social-battery-db --local --file=./db/seed.sql",
-    "db:seed:remote": "node scripts/generate-seed.mjs && wrangler d1 execute social-battery-db --remote --file=./db/seed.sql",
+    "db:seed:local": "tsx scripts/generate-seed.ts && wrangler d1 execute social-battery-db --local --file=./db/seed.sql",
+    "db:seed:remote": "tsx scripts/generate-seed.ts && wrangler d1 execute social-battery-db --remote --file=./db/seed.sql",
     "pages:build": "npx @cloudflare/next-on-pages",
     "preview": "npm run pages:build && wrangler pages dev .vercel/output/static",
     "deploy": "npm run pages:build && wrangler pages deploy .vercel/output/static",
-    "db:seed:generate": "node scripts/generate-seed.mjs",
+    "db:seed:generate": "tsx scripts/generate-seed.ts",
     "test:prompts": "tsx scripts/test-prompts.ts"
   },
   "dependencies": {

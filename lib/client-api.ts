@@ -6,6 +6,8 @@ export interface DaySummaryDTO {
   date: string;
   activities: Activity[];
   totalDrain: number;
+  /** 當天起床時的電量；低於基礎容量代表前一天的赤字被帶過來了 */
+  startBattery: number;
   remainingBattery: number;
   isLow: boolean;
   warning: string | null;

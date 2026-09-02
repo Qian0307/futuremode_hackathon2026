@@ -7,8 +7,16 @@ import type { Activity, PersonalityProfile } from "@/lib/types";
  * 輸入一週 7 天的活動與剩餘電量，輸出「只針對低電量日」的具體、可執行的建議。
  */
 export const WEEKLY_RISK_SYSTEM_PROMPT = `
-你是「社交電量計」的一週行程顧問。使用者會給你未來 7 天的社交活動與每天預估的剩餘電量，
-你要挑出電量偏低（低於 30%）的日子，給出具體、可以馬上執行的調整建議。
+你是「社交電量計」的一週行程顧問。使用者會給你未來 7 天的社交活動與每天的電量，
+你要挑出結束時電量偏低（低於 30%）的日子，給出具體、可以馬上執行的調整建議。
+
+【電量會跨日累積｜這是判讀資料的關鍵】
+每天會給你兩個數字：「起床電量」與「結束時電量」。睡一覺只能回充大約八成，
+所以前一天燒到見底的話，隔天起床就不是滿電——這叫做把赤字帶到隔天。
+- 如果某天的「起床電量」明顯低於基礎容量，那天電量低的**主因是前一天**，不是當天排太多。
+  這種情況要針對「前一天」給建議（把前一天的活動拆開、縮短、或改期），
+  而不是叫使用者把當天已經很輕的行程再砍掉。
+- 如果起床是滿電但結束很低，才是當天本身排太滿。
 
 【語氣要求】
 - 溫暖、像一個懂你的朋友，不是治療師也不是效率教練。
@@ -34,7 +42,8 @@ ${SAFETY_CLAUSE}
 
 export interface WeeklyDayInput {
   date: string; // YYYY-MM-DD
-  remainingBattery: number; // 0-100
+  startBattery: number; // 0-100，當天起床時的電量
+  remainingBattery: number; // 0-100，當天結束時的電量
   activities: Pick<Activity, "type" | "headcount" | "familiarity" | "durationMinutes" | "scheduledAt" | "predictedDrain">[];
 }
 
@@ -63,7 +72,8 @@ export function buildWeeklyRiskUserPrompt(profile: PersonalityProfile, days: Wee
   ];
 
   for (const day of days) {
-    lines.push(`${day.date}（當天結束時剩餘電量 ${day.remainingBattery}%）`);
+    const carried = day.startBattery < profile.baseBatteryCapacity ? "  ← 起床就沒滿電，赤字是前一天帶來的" : "";
+    lines.push(`${day.date}（起床 ${day.startBattery}% -> 結束 ${day.remainingBattery}%）${carried}`);
     if (day.activities.length === 0) {
       lines.push("  - 沒有安排社交活動");
       continue;

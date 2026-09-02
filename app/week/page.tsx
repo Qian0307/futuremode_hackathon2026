@@ -48,7 +48,11 @@ export default function WeekPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {lowDays.length === 0
             ? "整週的電量都在安全範圍，看起來安排得不錯。"
-            : `有 ${lowDays.length} 天電量會低於 30%，往下看看建議。`}
+            : `有 ${lowDays.length} 天電量會低於 30%${
+                lowDays.some((d) => d.startBattery < data.profile.baseBatteryCapacity)
+                  ? "，其中有幾天是前一天累積下來的"
+                  : ""
+              }。往下看看建議。`}
         </p>
       </div>
 
@@ -84,8 +88,13 @@ export default function WeekPage() {
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-coral-500" />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold">
-                    {formatMonthDay(day.date)}（{formatWeekday(day.date)}）· 剩餘 {day.remainingBattery}%
+                    {formatMonthDay(day.date)}（{formatWeekday(day.date)}）· 起床 {day.startBattery}% → 剩 {day.remainingBattery}%
                   </p>
+                  {day.startBattery < data.profile.baseBatteryCapacity && (
+                    <p className="inline-flex items-center rounded-full bg-coral-300/25 px-2 py-0.5 text-[11px] font-medium text-coral-500">
+                      前一天的赤字帶過來的
+                    </p>
+                  )}
                   <p className="text-sm leading-relaxed text-foreground/80">
                     {day.warning ?? "這天的電量偏低，記得留一點獨處時間。"}
                   </p>
@@ -107,6 +116,9 @@ function DayDetail({ day }: { day: DaySummaryDTO }) {
     <section className="space-y-3">
       <h2 className="text-sm font-semibold text-foreground/70">
         {formatMonthDay(day.date)}（{formatWeekday(day.date)}）的行程
+        <span className="ml-2 font-normal text-muted-foreground">
+          起床 {day.startBattery}% → 剩 {day.remainingBattery}%
+        </span>
       </h2>
       {day.activities.length === 0 ? (
         <Card>

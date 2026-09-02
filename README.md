@@ -48,6 +48,7 @@ lib/
   predict.ts                 預測流程：安全檢查 -> AI -> Zod -> 規則式 fallback
   drain-rules.ts             規則式消耗估算（fallback + 測試基準）
   onboarding.ts              6 題題庫 + 加權計分
+  battery.ts                 電量模型的純函式核心（跨日累積），seed 腳本共用同一份
   week.ts                    一週電量彙總 + 風險預警組裝
   repo.ts                    資料存取層（D1，無 binding 時自動退回記憶體）
 db/
@@ -55,7 +56,7 @@ db/
   migrations/                Migration SQL
   demo-scenario.json         Track C3：demo 情境資料（相對日期）
 scripts/
-  generate-seed.mjs          由情境資料產生 db/seed.sql（依執行當天換算日期）
+  generate-seed.ts           由情境資料產生 db/seed.sql（依執行當天換算日期）
   test-prompts.ts            Track C1.3：10 組活動的區分度測試
 middleware.ts                API rate limiting
 ```
@@ -189,7 +190,7 @@ npm run preview
 
 ### `GET /api/activities/week`
 回傳 `{ profile, startDate, days[7], totalActivities }`。
-每個 day 含 `activities`、`totalDrain`、`remainingBattery`、`isLow`、`warning`。
+每個 day 含 `activities`、`totalDrain`、`startBattery`、`remainingBattery`、`isLow`、`warning`。
 加 `?warnings=0` 可略過 AI 預警呼叫（首頁用，比較快）。
 
 ### `PATCH /api/activities/:id/actual-drain`
@@ -202,8 +203,13 @@ npm run preview
 
 ## 電量模型
 
-- 每天起床電量回到 `baseBatteryCapacity`，當天活動依序扣除。
-- 當天剩餘電量 < 30% 視為風險日，觸發 Track C2 的 AI 建議。
+- **電量會跨日累積**：睡一覺只回充 `baseBatteryCapacity × 0.8`（上限是基礎容量），
+  所以前一天沒補回來的赤字會帶到隔天。這是這個 app 存在的理由——
+  burnout 來自累積，不是單一天排太滿。數學在 `lib/battery.ts` 的 `simulateWeek()`。
+- 每天回傳兩個數字：`startBattery`（起床）與 `remainingBattery`（結束）。
+  `startBattery` 低於基礎容量就代表這天被前一天拖累，UI 與 AI prompt 都會據此改變說法。
+- 已知簡化：當天消耗超過起床電量時截在 0，不記「透支」的部分。
+- 當天結束電量 < 30% 視為風險日，觸發 Track C2 的 AI 建議。
 - 消耗係數的心理學依據（外向性光譜、資源保存理論）寫在
   `lib/prompts/predict-drain.ts` 的註解與 prompt 本文中，
   規則式 fallback `lib/drain-rules.ts` 用同一套邏輯的數值化版本。

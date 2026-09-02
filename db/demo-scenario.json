@@ -11,29 +11,101 @@
     "rechargeStyle": "specific_people"
   },
   "activities": [
-    { "dayOffset": 0, "time": "08:30", "type": "meeting", "headcount": 6, "familiarity": 3, "durationMinutes": 60, "predictedDrain": 16, "actualDrain": null,
-      "note": "今天早上的 meeting，已結束但還沒回報 -> 首頁會跳出回報卡片" },
-
-    { "dayOffset": 2, "time": "10:00", "type": "meeting", "headcount": 8, "familiarity": 3, "durationMinutes": 90, "predictedDrain": 24, "actualDrain": null,
-      "note": "低電量日 1：上午進度報告" },
-    { "dayOffset": 2, "time": "19:00", "type": "party", "headcount": 25, "familiarity": 2, "durationMinutes": 180, "predictedDrain": 52, "actualDrain": null,
-      "note": "低電量日 1：晚上系上迎新，人多又不熟，是整週最重的一場" },
-
-    { "dayOffset": 3, "time": "14:00", "type": "class", "headcount": 30, "familiarity": 2, "durationMinutes": 120, "predictedDrain": 18, "actualDrain": null,
-      "note": "被動參與為主，消耗中等" },
-
-    { "dayOffset": 4, "time": "09:00", "type": "meeting", "headcount": 5, "familiarity": 3, "durationMinutes": 60, "predictedDrain": 14, "actualDrain": null,
-      "note": "低電量日 2：三場連續" },
-    { "dayOffset": 4, "time": "12:30", "type": "meal", "headcount": 6, "familiarity": 2, "durationMinutes": 90, "predictedDrain": 22, "actualDrain": null,
-      "note": "低電量日 2：跟不熟的組員吃飯" },
-    { "dayOffset": 4, "time": "19:30", "type": "date", "headcount": 2, "familiarity": 5, "durationMinutes": 120, "predictedDrain": 12, "actualDrain": null,
-      "note": "低電量日 2：對象最親密，消耗低，但當天已經沒電了" },
-
-    { "dayOffset": 6, "time": "11:00", "type": "meal", "headcount": 2, "familiarity": 5, "durationMinutes": 120, "predictedDrain": 8, "actualDrain": null,
-      "note": "週末和最好的朋友吃早午餐，幾乎不掉電" }
+    {
+      "dayOffset": 0,
+      "time": "08:30",
+      "type": "meeting",
+      "headcount": 6,
+      "familiarity": 3,
+      "durationMinutes": 60,
+      "predictedDrain": 16,
+      "actualDrain": null,
+      "note": "今天早上的 meeting，已結束但還沒回報 -> 首頁會跳出回報卡片"
+    },
+    {
+      "dayOffset": 2,
+      "time": "10:00",
+      "type": "meeting",
+      "headcount": 8,
+      "familiarity": 3,
+      "durationMinutes": 90,
+      "predictedDrain": 24,
+      "actualDrain": null,
+      "note": "低電量日 1：上午進度報告"
+    },
+    {
+      "dayOffset": 2,
+      "time": "19:00",
+      "type": "party",
+      "headcount": 25,
+      "familiarity": 2,
+      "durationMinutes": 180,
+      "predictedDrain": 52,
+      "actualDrain": null,
+      "note": "低電量日 1：晚上系上迎新，人多又不熟，是整週最重的一場"
+    },
+    {
+      "dayOffset": 3,
+      "time": "14:00",
+      "type": "class",
+      "headcount": 30,
+      "familiarity": 2,
+      "durationMinutes": 120,
+      "predictedDrain": 18,
+      "actualDrain": null,
+      "note": "被動參與為主，消耗中等——但因為前一天燒到 0%，這天起床只有 46%，會被連帶拖下去"
+    },
+    {
+      "dayOffset": 4,
+      "time": "09:00",
+      "type": "meeting",
+      "headcount": 5,
+      "familiarity": 3,
+      "durationMinutes": 60,
+      "predictedDrain": 14,
+      "actualDrain": null,
+      "note": "低電量日 2：三場連續"
+    },
+    {
+      "dayOffset": 4,
+      "time": "12:30",
+      "type": "meal",
+      "headcount": 6,
+      "familiarity": 2,
+      "durationMinutes": 90,
+      "predictedDrain": 22,
+      "actualDrain": null,
+      "note": "低電量日 2：跟不熟的組員吃飯"
+    },
+    {
+      "dayOffset": 4,
+      "time": "19:30",
+      "type": "date",
+      "headcount": 2,
+      "familiarity": 5,
+      "durationMinutes": 120,
+      "predictedDrain": 12,
+      "actualDrain": null,
+      "note": "低電量日 2：對象最親密，消耗低，但當天已經沒電了"
+    },
+    {
+      "dayOffset": 6,
+      "time": "11:00",
+      "type": "meal",
+      "headcount": 2,
+      "familiarity": 5,
+      "durationMinutes": 120,
+      "predictedDrain": 8,
+      "actualDrain": null,
+      "note": "週末和最好的朋友吃早午餐，幾乎不掉電"
+    }
   ],
   "expected": {
-    "lowBatteryDayOffsets": [2, 4],
-    "explanation": "容量 58。D+2 共消耗 76 -> 剩 0%；D+4 共消耗 48 -> 剩 10%，兩天都低於 30% 門檻，會觸發 Track C2 的 AI 風險預警。"
+    "lowBatteryDayOffsets": [
+      2,
+      3,
+      4
+    ],
+    "explanation": "容量 58，睡一覺回充 80%（見 lib/battery.ts）。D+2 迎新共消耗 76 -> 剩 0%；D+3 起床只剩 46%，就算只有一堂課也掉到 28%；D+4 三場連續 -> 剩 10%。三天連續低於 30% 門檻，且 D+3 的低電量純粹是前一天累積來的——這正是要在 demo 講的故事。"
   }
 }
