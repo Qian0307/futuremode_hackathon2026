@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 165 60% 99%;
+    --foreground: 200 25% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 200 25% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 25% 18%;
+    --primary: 158 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 190 60% 94%;
+    --secondary-foreground: 200 30% 25%;
+    --muted: 180 25% 95%;
+    --muted-foreground: 200 12% 45%;
+    --accent: 190 80% 92%;
+    --accent-foreground: 200 30% 25%;
+    --destructive: 350 80% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 180 20% 88%;
+    --input: 180 20% 88%;
+    --ring: 158 70% 45%;
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply text-foreground;
+    background: linear-gradient(160deg, #f0fdf7 0%, #eafaf4 40%, #e5f4fd 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+/* 電池液體填充的柔和光暈 */
+.battery-glow {
+  filter: drop-shadow(0 4px 14px rgba(34, 201, 138, 0.25));
+}
+.battery-glow-low {
+  filter: drop-shadow(0 4px 14px rgba(244, 63, 94, 0.25));
+}

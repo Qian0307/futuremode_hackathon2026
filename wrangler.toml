@@ -1,0 +1,17 @@
+name = "social-battery-meter"
+compatibility_date = "2024-11-11"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# D1 binding。database_id 要換成 `wrangler d1 create social-battery-db` 產生的真實 id。
+[[d1_databases]]
+binding = "DB"
+database_name = "social-battery-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "db/migrations"
+
+# OPENAI_API_KEY 不寫在這裡。用下列指令設成 secret：
+#   wrangler pages secret put OPENAI_API_KEY
+# 本機開發放在 .dev.vars（已被 .gitignore 忽略）。
+[vars]
+OPENAI_MODEL = "gpt-4o-mini"
