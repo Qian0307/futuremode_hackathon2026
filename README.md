@@ -16,7 +16,7 @@
 | 後端 | Next.js Route Handlers（全部 `runtime = "edge"`） |
 | 驗證 | Zod（每個 API 的輸入與 AI 輸出都驗） |
 | 資料庫 | Cloudflare D1 + Drizzle ORM |
-| AI | OpenAI `gpt-4o-mini`（server-side only） |
+| AI | OpenAI `gpt-4o-mini`（server-side only，背景 refine） |
 | 部署 | Cloudflare Pages（`@cloudflare/next-on-pages`） |
 
 ---
@@ -44,7 +44,8 @@ lib/
   prompts/predict-drain.ts   Track C1：消耗預測 prompt
   prompts/weekly-risk-warning.ts  Track C2：一週風險預警 prompt
   safety.ts                  安全規範：危機關鍵字偵測 + 制式回應
-  ai.ts                      OpenAI 呼叫封裝（server-only）
+  ai.ts                      OpenAI 呼叫封裝（server-only，base URL 可覆寫）
+  background.ts              把工作丟到 ctx.waitUntil() 背景執行
   predict.ts                 預測流程：安全檢查 -> AI -> Zod -> 規則式 fallback
   drain-rules.ts             規則式消耗估算（fallback + 測試基準）
   onboarding.ts              6 題題庫 + 加權計分
@@ -81,6 +82,7 @@ npm run db:seed:local
 
 # 4. 設定 API Key（本機）
 echo 'OPENAI_API_KEY=sk-xxxx' > .dev.vars
+#    可選：OPENAI_BASE_URL 可改打相容端點（gateway / proxy / 測試用 mock）
 
 # 5. 開發
 npm run dev
@@ -186,7 +188,20 @@ npm run preview
 `source` 為 `ai` | `rule`（fallback）| `crisis`（命中安全規範）。
 
 ### `POST /api/activities`
-輸入 activity 四個欄位 + `scheduledAt`，內部呼叫預測後一起存入，回傳 `{ activity, reason, source }`。
+輸入 activity 四個欄位 + `scheduledAt`，回傳 `{ activity, reason, source, refining }`。
+
+**不會等 AI。** 呼叫 OpenAI 要好幾秒，讓使用者按下「加入行程」後盯著轉圈很糟，
+demo 現場網路不好時更明顯。所以流程是：
+
+1. 用 `lib/drain-rules.ts` 的規則式估算立刻存檔並回應（純計算，沒有 I/O）
+2. 把 AI 預測丟進 `ctx.waitUntil()` 背景跑，完成後回頭更新同一筆的 `predicted_drain`
+3. 前端在 2.5 秒與 6 秒後各 refetch 一次去接修正後的數字，期間顯示「AI 校準中…」
+
+`refining: true` 代表背景工作已排定（只有設了 `OPENAI_API_KEY` 才會是 true）。
+若使用者在 AI 回來前就回報了實際消耗，`refinePredictedDrain()` 會跳過覆寫——
+實際回報比預測更有價值。
+
+**這是延遲的優化，不是成本的優化**：AI 一樣會被呼叫一次。
 
 ### `GET /api/activities/week`
 回傳 `{ profile, startDate, days[7], totalActivities }`。

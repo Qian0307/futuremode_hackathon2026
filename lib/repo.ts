@@ -162,6 +162,24 @@ export async function findActivityById(id: string): Promise<Activity | null> {
   return rows[0] ? rowToActivity(rows[0]) : null;
 }
 
+/**
+ * 只更新 predictedDrain（AI 背景 refine 用）。
+ * 使用者若已經回報過實際消耗就不覆蓋——那筆資料比預測更有價值。
+ */
+export async function refinePredictedDrain(id: string, predictedDrain: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) {
+    const row = mem().activities.find((a) => a.id === id);
+    if (!row || row.actualDrain !== null) return false;
+    row.predictedDrain = predictedDrain;
+    return true;
+  }
+  const existing = await findActivityById(id);
+  if (!existing || existing.actualDrain !== null) return false;
+  await db.update(schema.activities).set({ predictedDrain }).where(eq(schema.activities.id, id));
+  return true;
+}
+
 export async function updateActualDrain(id: string, actualDrain: number): Promise<void> {
   const db = await getDb();
   if (!db) {

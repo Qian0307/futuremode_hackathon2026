@@ -20,6 +20,35 @@ export interface WeekResponse {
   totalActivities: number;
 }
 
+export interface CreateActivityInput {
+  type: Activity["type"];
+  headcount: number;
+  familiarity: Activity["familiarity"];
+  durationMinutes: number;
+  /** datetime-local 的 "YYYY-MM-DDTHH:mm"，由後端補上台北時區 */
+  scheduledAt: string;
+}
+
+export interface CreateActivityResponse {
+  activity: Activity;
+  /** 規則式估算的說明，立刻可顯示 */
+  reason: string;
+  source: "rule";
+  /** true = 後端正在背景用 AI 重算，稍後 refetch 會拿到修正後的數字 */
+  refining: boolean;
+}
+
+export async function createActivity(input: CreateActivityInput): Promise<CreateActivityResponse> {
+  const res = await fetch("/api/activities", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error(await errorMessage(res, "新增失敗"));
+  return (await res.json()) as CreateActivityResponse;
+}
+
 export class UnauthorizedError extends Error {
   constructor() {
     super("尚未完成人格快篩");

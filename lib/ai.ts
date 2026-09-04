@@ -6,7 +6,7 @@ import "server-only";
  * （檔首的 "server-only" 會讓誤用在 build 階段直接失敗）。
  */
 
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 /**
  * Cloudflare Pages 上 secret 會由 next-on-pages 注入 process.env；
@@ -45,11 +45,13 @@ export async function chatJson(opts: ChatJsonOptions): Promise<unknown | null> {
   if (!apiKey) return null;
 
   const model = (await readEnv("OPENAI_MODEL")) ?? "gpt-4o-mini";
+  // 可覆寫，方便接 gateway/proxy，或在本機用 mock server 測試
+  const baseUrl = ((await readEnv("OPENAI_BASE_URL")) ?? DEFAULT_OPENAI_BASE_URL).replace(/\/$/, "");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 12_000);
 
   try {
-    const res = await fetch(OPENAI_URL, {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

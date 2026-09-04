@@ -8,12 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { ACTIVITY_META, ACTIVITY_TYPES, FAMILIARITY_LABELS, formatDuration } from "@/lib/activity-meta";
-import { errorMessage } from "@/lib/http";
+import { createActivity, type CreateActivityResponse } from "@/lib/client-api";
 import type { Activity, ActivityType } from "@/lib/types";
 
+type Familiarity = Activity["familiarity"];
+
 export interface ActivitySheetProps {
-  /** 新增成功後通知父層重新載入 */
-  onCreated?: (activity: Activity, reason: string) => void;
+  /** 新增成功後通知父層重新載入；result.refining 為 true 代表 AI 還在背景重算 */
+  onCreated?: (result: CreateActivityResponse) => void;
   triggerLabel?: string;
 }
 
@@ -36,7 +38,7 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
   const [open, setOpen] = React.useState(false);
   const [type, setType] = React.useState<ActivityType>("meal");
   const [headcount, setHeadcount] = React.useState(4);
-  const [familiarity, setFamiliarity] = React.useState(3);
+  const [familiarity, setFamiliarity] = React.useState<Familiarity>(3);
   const [durationMinutes, setDurationMinutes] = React.useState(90);
   const [scheduledAt, setScheduledAt] = React.useState(defaultScheduledAt);
   const [submitting, setSubmitting] = React.useState(false);
@@ -47,14 +49,8 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/activities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, headcount, familiarity, durationMinutes, scheduledAt }),
-      });
-      if (!res.ok) throw new Error(await errorMessage(res, "新增失敗"));
-      const payload = (await res.json()) as { activity: Activity; reason: string };
-      onCreated?.(payload.activity, payload.reason);
+      const result = await createActivity({ type, headcount, familiarity, durationMinutes, scheduledAt });
+      onCreated?.(result);
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "新增失敗，請再試一次");
@@ -107,7 +103,7 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
               <Label>熟悉度</Label>
               <span className="text-sm font-semibold text-mint-600">{FAMILIARITY_LABELS[familiarity]}</span>
             </div>
-            <Slider min={1} max={5} step={1} value={[familiarity]} onValueChange={([v]) => setFamiliarity(v)} />
+            <Slider min={1} max={5} step={1} value={[familiarity]} onValueChange={([v]) => setFamiliarity(v as Familiarity)} />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>陌生人</span>
               <span>最親密</span>
@@ -137,7 +133,7 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" size="lg" className="w-full" disabled={submitting}>
-            {submitting ? "AI 估算中…" : "加入行程"}
+            {submitting ? "加入中…" : "加入行程"}
           </Button>
         </form>
       </SheetContent>

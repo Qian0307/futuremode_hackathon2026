@@ -9,7 +9,14 @@ import { BatteryGauge } from "@/components/BatteryGauge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ACTIVITY_META, formatDuration, formatTime } from "@/lib/activity-meta";
-import { fetchWeek, reportActualDrain, todayInTaipei, UnauthorizedError, type WeekResponse } from "@/lib/client-api";
+import {
+  fetchWeek,
+  reportActualDrain,
+  todayInTaipei,
+  UnauthorizedError,
+  type CreateActivityResponse,
+  type WeekResponse,
+} from "@/lib/client-api";
 import type { Activity } from "@/lib/types";
 
 export default function TodayPage() {
@@ -18,6 +25,14 @@ export default function TodayPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
+  /** 後端正在背景用 AI 重算的活動 id；用來顯示「AI 校準中」並排定 refetch */
+  const [refiningIds, setRefiningIds] = React.useState<string[]>([]);
+  const timers = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  React.useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
 
   const load = React.useCallback(async () => {
     try {
@@ -46,6 +61,30 @@ export default function TodayPage() {
 
   // 已過時間但還沒回報的活動
   const pending = activities.filter((a) => a.actualDrain === null && new Date(a.scheduledAt).getTime() + a.durationMinutes * 60_000 < Date.now());
+
+  /**
+   * 新增活動不等 AI：後端先用規則式估算存檔並回應，AI 在背景重算。
+   * 這裡先立刻把規則值畫出來，再排兩次 refetch 去接修正後的數字。
+   */
+  async function handleCreated(result: CreateActivityResponse) {
+    const { activity, reason, refining } = result;
+    setToast(`已加入，預估 -${activity.predictedDrain}%。${reason}`);
+    await load();
+
+    if (!refining) return;
+
+    setRefiningIds((prev) => [...prev, activity.id]);
+    // AI 通常 2-5 秒內回來；抓兩次，最後一次順便把標記清掉
+    const schedule = (delay: number, isLast: boolean) => {
+      const t = setTimeout(async () => {
+        await load();
+        if (isLast) setRefiningIds((prev) => prev.filter((id) => id !== activity.id));
+      }, delay);
+      timers.current.push(t);
+    };
+    schedule(2500, false);
+    schedule(6000, true);
+  }
 
   async function handleReport(activity: Activity, feedback: "more" | "same" | "less") {
     try {
@@ -143,7 +182,15 @@ export default function TodayPage() {
                       <p className={`text-lg font-semibold ${a.predictedDrain >= 40 ? "text-coral-500" : "text-mint-600"}`}>
                         -{a.actualDrain ?? a.predictedDrain}%
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{a.actualDrain !== null ? "實際" : "預估"}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {refiningIds.includes(a.id) ? (
+                          <span className="animate-pulse text-mint-600">AI 校準中…</span>
+                        ) : a.actualDrain !== null ? (
+                          "實際"
+                        ) : (
+                          "預估"
+                        )}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -153,7 +200,7 @@ export default function TodayPage() {
         )}
       </section>
 
-      <ActivitySheet onCreated={() => void load()} />
+      <ActivitySheet onCreated={handleCreated} />
 
       {error && <p className="text-center text-sm text-destructive">{error}</p>}
       {toast && <p className="text-center text-sm text-mint-600">{toast}</p>}
