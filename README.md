@@ -171,33 +171,83 @@ document.cookie = "sbm_session=demo-session; path=/"; location.reload();
 
 ## 4. 部署（Cloudflare Pages）
 
-```bash
-# 1. 建立正式 D1 並套用 migration
-npx wrangler d1 create social-battery-db
-npx wrangler d1 migrations apply social-battery-db --remote
-npm run db:seed:remote          # demo 資料，正式上線可略過
+**正式站台：https://social-battery-meter.pages.dev**
 
-# 2. 設定 secret（AI 主線不需要；以下都是選配）
+### 日常更新（初次設定完成後，只需要這一行）
+
+```bash
+npm run deploy
+```
+
+等同於 `npx @cloudflare/next-on-pages` 建置後，
+`wrangler pages deploy .vercel/output/static --project-name social-battery-meter`。
+
+> ⚠️ **`npm run dev` 不能跟 `npm run deploy` 同時跑**——兩者都會寫 `.next`，
+> 會讓建置中途失敗。部署前先把 dev server 關掉。
+
+### 初次設定（本專案已完成，換帳號才需要重跑）
+
+```bash
+# 1. 登入
+npx wrangler login
+
+# 2. 建立 D1，把回傳的 database_id 填進 wrangler.toml
+npx wrangler d1 create social-battery-db
+
+# 3. 建立 Pages 專案
+npx wrangler pages project create social-battery-meter --production-branch main
+
+# 4. 套用 migration 到正式資料庫
+npx wrangler d1 migrations apply social-battery-db --remote
+
+# 5. 灌入 demo 資料（選用；日期依執行當天換算）
+npm run db:seed:remote
+
+# 6. 部署
+npm run deploy
+```
+
+### AI 不需要任何設定
+Workers AI 走 `wrangler.toml` 的 `[ai]` binding，跟 D1 同一個帳號，
+部署後就直接可用，**不需要申請或設定任何 API Key**。
+
+### 選配的 secret
+
+```bash
 npx wrangler pages secret put ELEVENLABS_API_KEY   # Track D 語音輸入
 npx wrangler pages secret put GROQ_API_KEY         # AI 備援
 npx wrangler pages secret put OPENAI_API_KEY       # 現場有發 credits 再設
-
-# 3. 建置 + 部署
-npm run deploy
-# 等同於：npx @cloudflare/next-on-pages && wrangler pages deploy .vercel/output/static
 ```
 
-本機預覽 Cloudflare 環境：`npm run preview`
+設定完要**重新部署一次**才會生效（`npm run deploy`）。
+沒設 `ELEVENLABS_API_KEY` 時，語音按鈕會自己隱藏，表單照常手動填寫。
+
+### 部署後驗收
+
+```bash
+URL=https://social-battery-meter.pages.dev
+
+# AI 是否活著——要看到 "source":"ai"，看到 "rule" 代表 Workers AI 沒接上
+curl -s -X POST $URL/api/predict-drain -H 'Content-Type: application/json' \
+  -d '{"activity":{"type":"party","headcount":25,"familiarity":2,"durationMinutes":180},
+       "profile":{"baseBatteryCapacity":38,"summary":"偏內向","rechargeStyle":"solitude"}}'
+
+# 語音服務有沒有開啟
+curl -s $URL/api/voice-to-text -H "Cookie: sbm_session=demo-session"
+```
+
+瀏覽器 console 執行下面這行，就會看到完整的 demo 情境：
+
+```js
+document.cookie = "sbm_session=demo-session; path=/"; location.reload();
+```
 
 ### 部署檢查清單
-- [ ] `wrangler.toml` 的 `database_id` 已換成真實 id
-- [ ] Pages 專案已啟用 Workers AI binding（`wrangler.toml` 的 `[ai]`）
-- [ ] 所有 API Key 都是 Pages secret，且**沒有**出現在任何 client component
-- [ ] Pages 專案 compatibility flags 含 `nodejs_compat`
-- [ ] migration 已套用到 remote D1
-- [ ] Apple 行事曆訂閱需要公開網址，部署後要重新產生一次訂閱連結
-
----
+- [x] `wrangler.toml` 的 `database_id` 已填入真實 id
+- [x] Workers AI binding（`[ai]`）已設定，正式環境回 `source: "ai"`
+- [x] migration 已套用到 remote D1
+- [x] 所有 API Key 都是 Pages secret，**沒有**出現在任何 client component
+- [ ] 換日之後要重跑 `npm run db:seed:remote`，demo 資料的七天視窗才會對齊
 
 ## 5. 使用到的第三方 API 與套件
 
