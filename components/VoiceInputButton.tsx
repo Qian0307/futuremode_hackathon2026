@@ -13,10 +13,12 @@ export interface VoiceInputButtonProps {
   onTranscript: (transcript: string) => void | Promise<void>;
   /** 外層正在處理（例如 AI 解析中）時停用按鈕 */
   disabled?: boolean;
+  /** 服務可用性變化時通知外層，讓包住這個元件的容器也能一起收掉 */
+  onAvailabilityChange?: (available: boolean) => void;
   className?: string;
 }
 
-type State = "idle" | "recording" | "uploading" | "unavailable";
+type State = "checking" | "idle" | "recording" | "uploading" | "unavailable";
 
 /**
  * 按住錄音、放開停止。
@@ -25,8 +27,8 @@ type State = "idle" | "recording" | "uploading" | "unavailable";
  * 元件會自己收起來（state = unavailable）並顯示提示，
  * 讓使用者照常用底下的表單手動填——絕不阻擋核心流程。
  */
-export function VoiceInputButton({ onTranscript, disabled, className }: VoiceInputButtonProps) {
-  const [state, setState] = React.useState<State>("idle");
+export function VoiceInputButton({ onTranscript, disabled, onAvailabilityChange, className }: VoiceInputButtonProps) {
+  const [state, setState] = React.useState<State>("checking");
   const [seconds, setSeconds] = React.useState(0);
   const [hint, setHint] = React.useState<string | null>(null);
 
@@ -48,6 +50,29 @@ export function VoiceInputButton({ onTranscript, disabled, className }: VoiceInp
   }, []);
 
   React.useEffect(() => cleanup, [cleanup]);
+
+  // 掛載時先問後端有沒有開啟語音服務。沒開就完全不顯示，
+  // 使用者直接用下面的表單，不會被一顆按不動的按鈕誤導。
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/voice-to-text");
+        const payload = (await res.json().catch(() => null)) as { configured?: boolean } | null;
+        if (cancelled) return;
+        const available = Boolean(payload?.configured);
+        setState(available ? "idle" : "unavailable");
+        onAvailabilityChange?.(available);
+      } catch {
+        if (cancelled) return;
+        setState("unavailable");
+        onAvailabilityChange?.(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onAvailabilityChange]);
 
   async function startRecording() {
     if (state !== "idle" || disabled) return;
@@ -108,12 +133,20 @@ export function VoiceInputButton({ onTranscript, disabled, className }: VoiceInp
 
       const res = await fetch("/api/voice-to-text", { method: "POST", body: form });
       const payload = (await res.json().catch(() => null)) as
-        | { transcript?: string; error?: string; fallback?: string }
+        | { transcript?: string; error?: string; fallback?: string; configured?: boolean }
         | null;
+
+      // 服務沒開啟是永久性的，再按幾次也不會好——把按鈕收起來，只留一行說明。
+      if (res.status === 503 || payload?.configured === false) {
+        setState("unavailable");
+        setHint(payload?.error ?? "這個環境沒有開啟語音輸入，請直接填下面的欄位");
+        onAvailabilityChange?.(false);
+        return;
+      }
 
       if (!res.ok || !payload?.transcript) {
         setState("idle");
-        setHint(payload?.fallback ?? payload?.error ?? "語音辨識失敗，請直接輸入文字");
+        setHint(payload?.fallback ?? "語音辨識失敗，請直接輸入文字");
         return;
       }
 
@@ -126,8 +159,12 @@ export function VoiceInputButton({ onTranscript, disabled, className }: VoiceInp
     }
   }
 
+  // 探測中不佔版面，避免畫面閃一下
+  if (state === "checking") return null;
+
+  // 服務不可用：有原因就說一句，沒有就安靜地不顯示（表單本身已經完整可用）
   if (state === "unavailable") {
-    return <p className={cn("text-xs text-muted-foreground", className)}>{hint}</p>;
+    return hint ? <p className={cn("text-xs text-muted-foreground", className)}>{hint}</p> : null;
   }
 
   const recording = state === "recording";

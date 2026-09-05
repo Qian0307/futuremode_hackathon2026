@@ -48,6 +48,7 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
   const [parsing, setParsing] = React.useState(false);
   const [voiceNote, setVoiceNote] = React.useState<string | null>(null);
   const [uncertain, setUncertain] = React.useState<string[]>([]);
+  const [voiceAvailable, setVoiceAvailable] = React.useState(true);
 
   /**
    * 語音 -> 文字 -> AI 解析 -> 自動帶入欄位。
@@ -117,9 +118,19 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
           <SheetDescription>填完之後，AI 會估算它會耗掉你多少電量。</SheetDescription>
         </SheetHeader>
 
-        {/* Track D：語音輸入。不可用時元件會自己降級成一行提示，不擋下面的表單 */}
-        <div className="mt-5 rounded-2xl border border-dashed border-mint-300/70 bg-mint-50/50 p-4">
-          <VoiceInputButton onTranscript={handleTranscript} disabled={parsing || submitting} />
+        {/* Track D：語音輸入。這個環境沒開啟語音時整塊收掉，只留下面的手動表單 */}
+        <div
+          className={
+            voiceAvailable
+              ? "mt-5 rounded-2xl border border-dashed border-mint-300/70 bg-mint-50/50 p-4"
+              : "hidden"
+          }
+        >
+          <VoiceInputButton
+            onTranscript={handleTranscript}
+            disabled={parsing || submitting}
+            onAvailabilityChange={setVoiceAvailable}
+          />
           {parsing && <p className="mt-2 text-center text-xs text-mint-600">AI 解析中…</p>}
           {voiceNote && <p className="mt-2 text-center text-xs text-muted-foreground">{voiceNote}</p>}
           {uncertain.length > 0 && (

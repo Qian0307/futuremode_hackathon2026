@@ -9,6 +9,17 @@ export const runtime = "edge";
 const FALLBACK_MESSAGE = "語音辨識失敗，請直接輸入文字";
 
 /**
+ * GET /api/voice-to-text — 只回報這個環境有沒有開啟語音輸入。
+ * 讓前端在掛載時就知道要不要顯示錄音按鈕，
+ * 避免使用者錄完一段、還被要了麥克風權限，才發現根本沒開。
+ */
+export async function GET(req: Request) {
+  const user = await getCurrentUser(req);
+  if (!user) return fail("尚未完成人格快篩", 401);
+  return ok({ configured: await hasElevenLabsKey() });
+}
+
+/**
  * POST /api/voice-to-text
  * 接收音檔（multipart/form-data 的 `audio` 欄位，或 JSON 的 base64），
  * 呼叫 ElevenLabs Speech-to-Text，回傳 { transcript }。
@@ -17,8 +28,13 @@ export async function POST(req: Request) {
   const user = await getCurrentUser(req);
   if (!user) return fail("尚未完成人格快篩", 401);
 
+  // configured: false 讓前端知道這不是暫時性失敗——再按幾次也不會好，
+  // 應該直接把按鈕收起來，而不是留一顆按不動的按鈕誤導使用者。
   if (!(await hasElevenLabsKey())) {
-    return fail("尚未設定語音服務，請直接輸入文字", 503, { fallback: FALLBACK_MESSAGE });
+    return fail("這個環境沒有開啟語音輸入，請直接填下面的欄位", 503, {
+      fallback: FALLBACK_MESSAGE,
+      configured: false,
+    });
   }
 
   let audio: Blob;
