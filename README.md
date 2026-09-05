@@ -228,3 +228,5 @@ demo 現場網路不好時更明顯。所以流程是：
 - 消耗係數的心理學依據（外向性光譜、資源保存理論）寫在
   `lib/prompts/predict-drain.ts` 的註解與 prompt 本文中，
   規則式 fallback `lib/drain-rules.ts` 用同一套邏輯的數值化版本。
+#   f u t u r e m o d e _ h a c k a t h o n 2 0 2 6  
+ 
