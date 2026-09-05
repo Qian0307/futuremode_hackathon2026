@@ -7,7 +7,7 @@ pages_build_output_dir = ".vercel/output/static"
 [[d1_databases]]
 binding = "DB"
 database_name = "social-battery-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "76ff6dd3-8347-47b9-9ea3-f48e386f1db8"
 migrations_dir = "db/migrations"
 
 # Workers AI binding —— 主要的 AI 供應商。

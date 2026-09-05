@@ -303,6 +303,3 @@ npm run db:seed:generate # 驗證 demo 資料仍會觸發預期的低電量預�
 ## 授權
 
 MIT License，見 [LICENSE](./LICENSE)。
-#   f u t u r e m o d e _ h a c k a t h o n 2 0 2 6 
- 
- 
