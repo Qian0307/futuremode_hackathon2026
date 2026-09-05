@@ -117,16 +117,22 @@ export default function WeekPage() {
             <Card key={day.date} className="border-coral-300/70 bg-coral-300/10">
               <CardContent className="flex gap-3 p-5">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-coral-500" />
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold">
-                    {formatMonthDay(day.date)}（{formatWeekday(day.date)}）· 起床 {day.startBattery}% → 剩 {day.remainingBattery}%
-                  </p>
-                  {day.startBattery < data.profile.baseBatteryCapacity && (
-                    <BatteryDerivation
-                      day={day}
-                      previousRemaining={previousRemainingOf(data, day.date)}
-                      capacity={data.profile.baseBatteryCapacity}
-                    />
+                <div className="space-y-1.5">
+                  {day.startBattery < data.profile.baseBatteryCapacity ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        {formatMonthDay(day.date)}（{formatWeekday(day.date)}）
+                      </p>
+                      <CarryOverNote
+                        day={day}
+                        previousRemaining={previousRemainingOf(data, day.date)}
+                        variant="headline"
+                      />
+                    </>
+                  ) : (
+                    <p className="text-sm font-semibold">
+                      {formatMonthDay(day.date)}（{formatWeekday(day.date)}）· 剩餘 {day.remainingBattery}%
+                    </p>
                   )}
                   {day.warning ? (
                     <p className="text-sm leading-relaxed text-foreground/80">{day.warning}</p>
@@ -169,27 +175,43 @@ function previousRemainingOf(data: WeekResponse, date: string): number | null {
 }
 
 /**
- * 把 simulateWeek() 的算式攤開給使用者看。
- * 沒有這段，46% 只是一個沒有來源的數字——
- * 模型是這個產品的核心，但原本畫面上完全看不出它存在。
+ * 跨日結轉的說明。
+ *
+ * 視覺順序刻意分三層：先看到「起床只剩 46%」，再讀懂「昨天的赤字還沒補回來」，
+ * 最後才是昨天到今天的因果鏈。公式不該搶走主視覺——使用者要的是原因，不是算式。
  */
-function BatteryDerivation({
+function CarryOverNote({
   day,
   previousRemaining,
-  capacity,
+  variant,
 }: {
   day: DaySummaryDTO;
   previousRemaining: number | null;
-  capacity: number;
+  variant: "headline" | "inline";
 }) {
   if (previousRemaining === null) return null;
-  const recharge = Math.round(capacity * OVERNIGHT_RECOVERY_RATE);
+
+  const causalChain = `昨天 ${previousRemaining}% → 今早 ${day.startBattery}% → 今晚 ${day.remainingBattery}%`;
+
+  if (variant === "inline") {
+    return (
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {causalChain}．睡眠只回充八成，昨天的赤字被帶到今天
+      </p>
+    );
+  }
 
   return (
-    <p className="rounded-xl bg-white/70 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-coral-500">
-      前一天剩 {previousRemaining}% + 睡眠回充 {recharge}%（{capacity}% × {Math.round(OVERNIGHT_RECOVERY_RATE * 100)}%）
-      = 起床 {day.startBattery}%
-    </p>
+    <div className="space-y-0.5">
+      <p className="text-lg font-semibold leading-tight text-coral-500">
+        起床只剩 {day.startBattery}%
+      </p>
+      <p className="text-xs font-medium text-foreground/75">昨天的赤字還沒補回來</p>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{causalChain}</p>
+      <p className="text-[10px] tracking-wide text-muted-foreground/60">
+        睡眠只回充八成・跨日資源模型
+      </p>
+    </div>
   );
 }
 
@@ -211,7 +233,7 @@ function DayDetail({
         </span>
       </h2>
       {day.startBattery < capacity && (
-        <BatteryDerivation day={day} previousRemaining={previousRemaining} capacity={capacity} />
+        <CarryOverNote day={day} previousRemaining={previousRemaining} variant="inline" />
       )}
       {day.activities.length === 0 ? (
         <Card>
