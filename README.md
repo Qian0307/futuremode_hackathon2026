@@ -1,8 +1,25 @@
 # 社交電量計 · Social Battery Meter
 
 > **SITCON Hackathon 2026 · 賽道：AI for Everyday Life**
-> 用 AI 幫「社交能量」建模——像手機電池一樣，預測每場社交活動會消耗多少心理能量，
-> 並幫你規劃一週行程，在 burnout 發生**之前**就看見它。
+
+## 🔋 [→ 開啟示範情境](https://social-battery-meter.pages.dev/week?demo=1)
+
+一打開就會看到一位使用者未來七天的社交電量。**請看第四格**：
+
+> 那天只有一堂課，電量卻掉到 **28%**——
+> 因為前一晚的迎新把她燒到 0%，**隔天起床只剩 46%**。
+> 睡一覺只回充八成，補不滿的赤字會被帶到隔天。
+
+行事曆的資料模型是「時間是否衝突」，所以它會說那天有空。
+我們的資料模型是「心理資源存量」，而且**存量會跨日結轉**——
+所以我們算得出一個行事曆算不出來的答案：**「這天是空的，但你不該排。」**
+
+| | |
+|---|---|
+| 線上展示 | https://social-battery-meter.pages.dev/week?demo=1 |
+| 一般入口 | https://social-battery-meter.pages.dev |
+| 技術棧 | Next.js 14 · Cloudflare Pages + D1 + Workers AI · 全部 edge runtime |
+| AI 成本 | **0 元**——Workers AI 免費額度，沒有使用任何付費 LLM |
 
 ---
 
@@ -305,7 +322,7 @@ app/
   week/page.tsx              一週總覽 + 風險預警 + 日曆訂閱
   plan/page.tsx              排日程系統
   review/page.tsx            回顧系統
-  api/                       10 條 Route Handlers（全部 edge runtime）
+  api/                       11 條 Route Handlers（全部 edge runtime）
 components/
   BatteryGauge.tsx           SVG + Framer Motion 電池（純前端，size: "lg" | "sm"）
   ActivitySheet.tsx          底部彈出的新增活動表單（含語音輸入）
@@ -328,6 +345,8 @@ db/
 scripts/
   generate-seed.ts           產生 seed（依執行當天換算，並驗證預警日符合預期）
   test-prompts.ts            10 組活動的預測區分度測試
+middleware.ts                API rate limiting + ?demo=1 一鍵載入示範情境
+public/icon.svg              favicon（放 public/ 而非 app/，見部署章節說明）
 ```
 
 ---
