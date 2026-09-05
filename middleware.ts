@@ -16,6 +16,13 @@ const LIMITS: { prefix: string; limit: number }[] = [
   { prefix: "/api/activities/week", limit: 40 },
   { prefix: "/api/activities", limit: 20 },
   { prefix: "/api/onboarding", limit: 20 },
+  // Track D：語音成本較高，抓得更緊
+  { prefix: "/api/voice-to-text", limit: 10 },
+  { prefix: "/api/parse-voice-activity", limit: 15 },
+  // 排日程與回顧都會呼叫 AI
+  { prefix: "/api/schedule-suggest", limit: 12 },
+  { prefix: "/api/review/week", limit: 20 },
+  { prefix: "/api/calendar/subscribe", limit: 10 },
 ];
 
 type Bucket = { count: number; resetAt: number };
@@ -32,6 +39,11 @@ function limitFor(pathname: string): number | null {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // 日曆 feed 由 Apple/Google 行事曆定時輪詢，且不帶 cookie，不套用限流。
+  // 但取得訂閱網址的 /api/calendar/subscribe 仍然要限流。
+  if (pathname.startsWith("/api/calendar/") && pathname !== "/api/calendar/subscribe") {
+    return NextResponse.next();
+  }
   const limit = limitFor(pathname);
   if (limit === null) return NextResponse.next();
 

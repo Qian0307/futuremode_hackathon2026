@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { Slider } from "@/components/ui/slider";
 import { ACTIVITY_META, ACTIVITY_TYPES, FAMILIARITY_LABELS, formatDuration } from "@/lib/activity-meta";
-import { createActivity, type CreateActivityResponse } from "@/lib/client-api";
+import { createActivity, parseVoiceActivity, type CreateActivityResponse } from "@/lib/client-api";
 import type { Activity, ActivityType } from "@/lib/types";
 
 type Familiarity = Activity["familiarity"];
@@ -43,6 +44,49 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
   const [scheduledAt, setScheduledAt] = React.useState(defaultScheduledAt);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Track D：語音填入的狀態
+  const [parsing, setParsing] = React.useState(false);
+  const [voiceNote, setVoiceNote] = React.useState<string | null>(null);
+  const [uncertain, setUncertain] = React.useState<string[]>([]);
+
+  /**
+   * 語音 -> 文字 -> AI 解析 -> 自動帶入欄位。
+   * 任何一步失敗都只是「欄位沒被填」，使用者照樣可以手動填完送出（D4-3）。
+   */
+  async function handleTranscript(transcript: string) {
+    setParsing(true);
+    setError(null);
+    setUncertain([]);
+    try {
+      const result = await parseVoiceActivity(transcript);
+      if (result.crisis) {
+        setVoiceNote(null);
+        setError(result.message);
+        return;
+      }
+      const a = result.activity;
+      setType(a.type);
+      setHeadcount(a.headcount);
+      setFamiliarity(Math.max(1, Math.min(5, a.familiarity)) as Familiarity);
+      setDurationMinutes(a.durationMinutes);
+      setScheduledAt(a.scheduledAt);
+      setUncertain(a.uncertainFields);
+      setVoiceNote(`聽到的是：「${transcript}」`);
+    } catch (err) {
+      setVoiceNote(null);
+      setError(err instanceof Error ? err.message : "無法解析這段語音，請直接填下面的欄位");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  const FIELD_LABELS: Record<string, string> = {
+    type: "活動類型",
+    headcount: "人數",
+    familiarity: "熟悉度",
+    durationMinutes: "時長",
+    scheduledAt: "日期時間",
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +116,18 @@ export function ActivitySheet({ onCreated, triggerLabel = "新增活動" }: Acti
           <SheetTitle>這場活動長什麼樣子？</SheetTitle>
           <SheetDescription>填完之後，AI 會估算它會耗掉你多少電量。</SheetDescription>
         </SheetHeader>
+
+        {/* Track D：語音輸入。不可用時元件會自己降級成一行提示，不擋下面的表單 */}
+        <div className="mt-5 rounded-2xl border border-dashed border-mint-300/70 bg-mint-50/50 p-4">
+          <VoiceInputButton onTranscript={handleTranscript} disabled={parsing || submitting} />
+          {parsing && <p className="mt-2 text-center text-xs text-mint-600">AI 解析中…</p>}
+          {voiceNote && <p className="mt-2 text-center text-xs text-muted-foreground">{voiceNote}</p>}
+          {uncertain.length > 0 && (
+            <p className="mt-2 text-center text-xs text-coral-500">
+              這幾項是猜的，記得確認：{uncertain.map((f) => FIELD_LABELS[f] ?? f).join("、")}
+            </p>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
           <div className="space-y-2">

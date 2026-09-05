@@ -24,6 +24,8 @@ export async function POST(req: Request) {
       anonymousSessionId: sessionId,
       personalityProfile: JSON.stringify(profile),
       baseBatteryCapacity: profile.baseBatteryCapacity,
+      // 日曆訂閱 token 等使用者第一次開啟訂閱時才產生
+      calendarToken: existing?.calendarToken ?? null,
       createdAt: existing?.createdAt ?? now,
     });
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 import { BatteryGauge } from "@/components/BatteryGauge";
+import { CalendarSubscribe } from "@/components/CalendarSubscribe";
 import { Card, CardContent } from "@/components/ui/card";
 import { ACTIVITY_META, formatMonthDay, formatTime, formatWeekday } from "@/lib/activity-meta";
 import { fetchWeek, todayInTaipei, UnauthorizedError, type DaySummaryDTO, type WeekResponse } from "@/lib/client-api";
@@ -107,6 +108,9 @@ export default function WeekPage() {
 
       {/* 選取那天的細節 */}
       {selectedDay && <DayDetail day={selectedDay} />}
+
+      {/* Apple 日曆訂閱 */}
+      <CalendarSubscribe />
     </div>
   );
 }

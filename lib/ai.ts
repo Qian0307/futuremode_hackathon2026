@@ -1,5 +1,7 @@
 import "server-only";
 
+import { readEnv } from "@/lib/env";
+
 /**
  * OpenAI 呼叫封裝。
  * 安全規範：API Key 只在 server-side 讀取，任何 client component 都不可 import 此檔
@@ -7,21 +9,6 @@ import "server-only";
  */
 
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
-
-/**
- * Cloudflare Pages 上 secret 會由 next-on-pages 注入 process.env；
- * 若拿不到就退回 request context 的 env binding。
- */
-async function readEnv(key: string): Promise<string | undefined> {
-  const fromProcess = process.env[key];
-  if (fromProcess) return fromProcess;
-  try {
-    const { getRequestContext } = await import("@cloudflare/next-on-pages");
-    return (getRequestContext().env as unknown as Record<string, string | undefined>)?.[key];
-  } catch {
-    return undefined;
-  }
-}
 
 export async function hasOpenAIKey(): Promise<boolean> {
   return Boolean(await readEnv("OPENAI_API_KEY"));

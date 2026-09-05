@@ -101,6 +101,14 @@ export async function attachWarnings(days: DaySummary[], profile: PersonalityPro
   return days.map((d) => (d.isLow ? { ...d, warning: map.get(d.date) ?? ruleBasedWarning(d, profile) } : d));
 }
 
+/**
+ * 只用規則填預警文字，不呼叫 AI。
+ * 日曆 feed 會被行事曆用戶端定時輪詢，不該每次都燒 AI credits。
+ */
+export function attachRuleWarnings(days: DaySummary[], profile: PersonalityProfile): DaySummary[] {
+  return days.map((d) => (d.isLow ? { ...d, warning: ruleBasedWarning(d, profile) } : d));
+}
+
 /** AI 不可用時的預警文字（仍要具體，不能只寫「記得休息」）。 */
 function ruleBasedWarning(day: DaySummary, profile: PersonalityProfile): string {
   const count = day.activities.length;

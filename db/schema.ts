@@ -11,10 +11,17 @@ export const users = sqliteTable(
     anonymousSessionId: text("anonymous_session_id").notNull(),
     personalityProfile: text("personality_profile").notNull(), // JSON: PersonalityProfile
     baseBatteryCapacity: integer("base_battery_capacity").notNull(),
+    /**
+     * Apple/Google 行事曆訂閱用的 token。
+     * 行事曆用戶端抓 .ics 時不會帶 cookie，所以需要一個放在網址裡的隨機憑證。
+     * 舊資料可能為 NULL，第一次開啟訂閱時才產生。
+     */
+    calendarToken: text("calendar_token"),
     createdAt: text("created_at").notNull(),
   },
   (t) => ({
     anonSessionIdx: index("users_anonymous_session_id_idx").on(t.anonymousSessionId),
+    calendarTokenIdx: index("users_calendar_token_idx").on(t.calendarToken),
   })
 );
 

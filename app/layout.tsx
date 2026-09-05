@@ -25,13 +25,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="text-base font-semibold tracking-tight text-foreground">
               社交電量計
             </Link>
-            <nav className="flex items-center gap-1 rounded-full bg-white/70 p-1 text-sm shadow-sm backdrop-blur">
-              <Link href="/" className="rounded-full px-3 py-1.5 text-muted-foreground transition hover:bg-white hover:text-foreground">
-                今天
-              </Link>
-              <Link href="/week" className="rounded-full px-3 py-1.5 text-muted-foreground transition hover:bg-white hover:text-foreground">
-                一週
-              </Link>
+            <nav className="flex items-center gap-0.5 rounded-full bg-white/70 p-1 text-xs shadow-sm backdrop-blur sm:text-sm">
+              {[
+                { href: "/", label: "今天" },
+                { href: "/week", label: "一週" },
+                { href: "/plan", label: "排程" },
+                { href: "/review", label: "回顧" },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-full px-2.5 py-1.5 text-muted-foreground transition hover:bg-white hover:text-foreground sm:px-3"
+                >
+                  {item.label}
+                </Link>
+              ))}
             </nav>
           </header>
           <main className="flex-1">{children}</main>

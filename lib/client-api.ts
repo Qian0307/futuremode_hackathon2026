@@ -87,3 +87,122 @@ export function todayInTaipei(): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+/* ------------------------------------------------------------------ */
+/* Track D：語音輸入                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface ParsedVoiceActivity {
+  type: Activity["type"];
+  headcount: number;
+  familiarity: number;
+  durationMinutes: number;
+  /** "YYYY-MM-DDTHH:mm"，可直接餵給 datetime-local */
+  scheduledAt: string;
+  /** AI 用預設值猜的欄位，前端提示使用者確認 */
+  uncertainFields: string[];
+}
+
+export type ParseVoiceResult =
+  | { crisis: true; message: string }
+  | { crisis?: false; activity: ParsedVoiceActivity; source: "ai" | "rule" };
+
+export async function parseVoiceActivity(transcript: string): Promise<ParseVoiceResult> {
+  const res = await fetch("/api/parse-voice-activity", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcript }),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error(await errorMessage(res, "無法解析這段語音"));
+  return (await res.json()) as ParseVoiceResult;
+}
+
+/* ------------------------------------------------------------------ */
+/* 回顧系統                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface AccuracyStatsDTO {
+  reported: number;
+  avgError: number | null;
+  overestimated: number;
+  underestimated: number;
+}
+
+export interface TypeBreakdownDTO {
+  type: Activity["type"];
+  label: string;
+  count: number;
+  avgPredicted: number;
+  avgActual: number | null;
+  /** 正值 = 系統低估（實際比預測高） */
+  bias: number | null;
+}
+
+export interface ReviewResponse {
+  profile: PersonalityProfile;
+  startDate: string;
+  endDate: string;
+  activities: Activity[];
+  accuracy: AccuracyStatsDTO;
+  breakdown: TypeBreakdownDTO[];
+  summary: { headline: string; observations: string[]; suggestion: string; source: "ai" | "rule" } | null;
+}
+
+export async function fetchReview(): Promise<ReviewResponse> {
+  const res = await fetch("/api/review/week", { cache: "no-store" });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error(await errorMessage(res, "讀取回顧失敗"));
+  return (await res.json()) as ReviewResponse;
+}
+
+/* ------------------------------------------------------------------ */
+/* 排日程系統                                                           */
+/* ------------------------------------------------------------------ */
+
+export interface ScheduleSuggestionDTO {
+  date: string;
+  startTime: string;
+  reason: string;
+  rating: "best" | "ok" | "avoid";
+}
+
+export type ScheduleSuggestResponse =
+  | { crisis: true; message: string }
+  | {
+      crisis?: false;
+      activity: ParsedVoiceActivity | CreateActivityInput;
+      suggestions: ScheduleSuggestionDTO[];
+      estimatedDrain: number;
+      source: "ai" | "rule";
+    };
+
+export async function suggestSchedule(
+  input: { description: string } | { activity: Omit<CreateActivityInput, "scheduledAt"> }
+): Promise<ScheduleSuggestResponse> {
+  const res = await fetch("/api/schedule-suggest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error(await errorMessage(res, "產生建議失敗"));
+  return (await res.json()) as ScheduleSuggestResponse;
+}
+
+/* ------------------------------------------------------------------ */
+/* Apple 日曆訂閱                                                       */
+/* ------------------------------------------------------------------ */
+
+export interface CalendarSubscription {
+  token: string;
+  url: string;
+  webcalUrl: string;
+}
+
+export async function fetchCalendarSubscription(): Promise<CalendarSubscription> {
+  const res = await fetch("/api/calendar/subscribe", { method: "POST" });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) throw new Error(await errorMessage(res, "無法取得訂閱網址"));
+  return (await res.json()) as CalendarSubscription;
+}

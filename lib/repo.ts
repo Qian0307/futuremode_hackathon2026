@@ -117,6 +117,31 @@ export async function updateBaseCapacity(userId: string, capacity: number): Prom
     .where(eq(schema.users.id, userId));
 }
 
+/** 日曆訂閱：行事曆用戶端不帶 cookie，只能靠網址裡的 token 認人。 */
+export async function findUserByCalendarToken(token: string): Promise<UserRow | null> {
+  const db = await getDb();
+  if (!db) return mem().users.find((u) => u.calendarToken === token) ?? null;
+  const rows = await db.select().from(schema.users).where(eq(schema.users.calendarToken, token)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** 取得（必要時產生）使用者的日曆訂閱 token。 */
+export async function ensureCalendarToken(userId: string): Promise<string | null> {
+  const user = await findUserById(userId);
+  if (!user) return null;
+  if (user.calendarToken) return user.calendarToken;
+
+  const token = crypto.randomUUID().replace(/-/g, "");
+  const db = await getDb();
+  if (!db) {
+    const row = mem().users.find((u) => u.id === userId);
+    if (row) row.calendarToken = token;
+    return token;
+  }
+  await db.update(schema.users).set({ calendarToken: token }).where(eq(schema.users.id, userId));
+  return token;
+}
+
 /* ------------------------------------------------------------------ */
 /* Activities                                                          */
 /* ------------------------------------------------------------------ */

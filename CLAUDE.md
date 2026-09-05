@@ -203,6 +203,45 @@ git worktree add ../track-c-ai-prompt track-c-ai-prompt
 
 ---
 
+## Track D（選配，時間允許再做）：ElevenLabs 語音輸入
+
+> 定位：加分項，不影響核心 MVP。建議排在 Day 2 晚上或 Day 3 上午，核心功能穩定後再做。
+
+### D1. 語音輸入元件
+```
+建立 components/VoiceInputButton.tsx，錄音按鈕（按住錄音、放開停止，用 MediaRecorder API 錄製瀏覽器麥克風音訊）。
+錄音完成後將音檔（webm/mp3）送到 /api/voice-to-text。
+UI 用 shadcn/ui 的 Button，錄音中顯示脈動動畫提示使用者正在收音。
+```
+
+### D2. ElevenLabs 語音轉文字 API
+```
+建立 POST /api/voice-to-text，接收音檔（multipart/form-data 或 base64），
+呼叫 ElevenLabs Speech-to-Text API 轉成文字，回傳 { transcript: string }。
+ElevenLabs API Key 只能在 server-side 讀取，不可出現在前端。
+若轉錄失敗要有 fallback 提示（「語音辨識失敗，請直接輸入文字」），不可讓整個表單卡住。
+```
+
+### D3. 整合進活動輸入表單
+```
+在 Track B3 的新增活動表單頂部加入 VoiceInputButton。
+使用者說出類似「明天晚上跟三個朋友吃飯，大概兩小時」，
+呼叫 D2 取得文字後，再用一個簡單的 AI parsing API
+（POST /api/parse-voice-activity，用 OpenAI gpt-4o-mini 把自然語言轉成結構化欄位：
+type, headcount, familiarity, durationMinutes, scheduledAt），
+自動帶入表單欄位，使用者可再手動微調後送出。
+此 parsing API 需符合 /lib/types.ts 的 Activity 欄位命名，並用 Zod 驗證輸出。
+```
+
+### D4. 安全與體驗細節
+```
+1. 麥克風權限被拒絕時，表單要能正常降級為純文字輸入，不可阻擋核心流程。
+2. 錄音檔案大小與時長需限制（例如上限 30 秒），避免不必要的 API 成本。
+3. 語音轉文字與 AI parsing 屬於非核心功能，若 demo 現場網路不穩，須確保「手動填表單」這條路徑隨時可用。
+```
+
+---
+
 ## 整合檢查點（每天結束前執行）
 
 ### Day 1 晚上
@@ -215,7 +254,71 @@ git worktree add ../track-c-ai-prompt track-c-ai-prompt
 - [ ] 一週總覽頁能正確顯示 Track C 的風險預警文字
 - [ ] 部署到 Cloudflare Pages 的 staging 版本可以打開
 
-### Day 3 上午
-- [ ] 用 Track C3 的 demo 資料跑一次完整流程，錄影存證
-- [ ] 檢查所有 API Key 沒有外洩到前端
-- [ ] 正式部署 + 最終 demo 腳本確認
+### Day 3 上午（⚠️ 截止時間更正為 09/06 10:00，不是 11:00）
+- [ ] 07:00-08:30　最後修 bug + 正式部署到 Cloudflare Pages
+- [ ] 08:30-09:00　錄製最長 2 分鐘的 YouTube 評選影片
+- [ ] 09:00-09:30　上傳影片設為公開、撰寫 README、補完 100-200 字問題與解法摘要、確認 GitHub repo 為 Public 且含 LICENSE
+- [ ] 09:30-10:00　緩衝時間，正式送出繳交表單
+- [ ] 檢查所有 API Key 沒有外洩到前端或 commit 進公開 repo（用 .env + .gitignore）
+- [ ] （選配）若 Track D 語音輸入有做，確認麥克風權限被拒時能正常降級為文字輸入，不影響核心流程展示
+
+---
+
+## Track E：繳交準備（依 SITCON Hackathon 2026 官方繳交規則）
+
+> 截止：**09/06 10:00**。繳交項目共 6 項，建議 Day 2 晚上就先把能提前準備的做完，不要全部留到 Day 3 早上。
+
+### E1. 隊伍資料與賽道確認
+```
+確認隊名、隊員名單、主賽道（AI for Everyday Life）、
+以及是否要勾選任何贊助商挑戰（例如若有做 Track D 的 ElevenLabs 語音輸入，記得勾選對應挑戰）。
+```
+
+### E2. 100–200 字問題與解法摘要（建議 Day 2 晚上先寫草稿）
+```
+撰寫 100-200 字的問題與解法摘要，結構建議：
+1. 一句話痛點（內向者/高敏感族群不易察覺社交能量耗盡）
+2. 一句話解法（用 AI 預測社交活動的能量消耗，像手機電池一樣視覺化並規劃一週行程）
+3. 一句話心理學依據（奠基於外向性人格理論與資源保存理論）
+4. 一句話技術亮點（Next.js + Cloudflare + AI 個人化學習校準機制）
+字數需控制在 100-200 字之間，中英文皆需注意字數規則（若官方有特別說明中英字數算法需再確認）。
+```
+
+### E3. GitHub 儲存庫公開與授權
+```
+1. 確認 repo 設為 Public
+2. 加入 LICENSE 檔案（建議用 MIT License，內容簡單且業界慣用）
+3. 確認 .gitignore 有排除 .env、node_modules、任何含 API Key 的檔案
+4. 用 git log 或 GitHub 的 secret scanning 功能，最後確認沒有任何 API Key 被 commit 進歷史紀錄
+```
+
+### E4. README 撰寫
+```
+撰寫 README.md，需包含：
+1. 專案介紹（一段話說明社交電量計是什麼、解決什麼問題）
+2. 系統架構說明（前端 Next.js + 後端 API Routes + Cloudflare D1 資料庫 + OpenAI API，
+   可用簡單文字或 ASCII 圖示說明資料流：使用者輸入 → predict-drain API → OpenAI → 存入 D1 → 前端視覺化）
+3. 本地執行方式（git clone → npm install → 設定 .env（OPENAI_API_KEY）→ npm run dev）
+4. 部署方式（wrangler pages deploy 步驟）
+5. 使用到的第三方 API/套件與來源說明（OpenAI API、shadcn/ui、Drizzle ORM、Cloudflare D1，若有用到 ElevenLabs 也列入）
+6. 心理學理論依據簡述（可直接引用計劃書第 9 節的參考文獻列表）
+```
+
+### E5. 作品展示網址確認（選填但強烈建議）
+```
+確認 Cloudflare Pages 正式部署網址可以正常打開、跑過一次完整流程（onboarding → 新增活動 → 電量預測 → 一週總覽），
+沒有明顯 bug 或 console error。
+```
+
+### E6. 2 分鐘 YouTube 展示影片腳本
+```
+腳本架構（總長不超過 2 分鐘）：
+0:00-0:15　痛點開場（一句話點出「你知道自己什麼時候會社交過載嗎？」）
+0:15-0:30　解法一句話介紹 + 心理學理論依據帶過
+0:30-1:30　實際 demo（用 Track C3 準備好的 demo 資料，展示 onboarding → 新增活動 → 電量預測 → 
+           一週總覽 + 風險預警 → 事後回報校準，一鏡到底不要中斷）
+1:30-1:50　技術亮點簡述（Next.js + Cloudflare + OpenAI，若有用 ElevenLabs 語音輸入也秀一下）
+1:50-2:00　收尾（隊名、專案名稱）
+錄製工具：OBS Studio 或直接用瀏覽器內建錄影 + 手機錄旁白，剪輯可用 CapCut 或 iMovie 快速完成。
+影片上傳 YouTube 後記得設為「公開」或「非公開但知道連結的人可觀看」，並確認繳交表單能正確嵌入連結。
+```

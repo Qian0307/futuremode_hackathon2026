@@ -10,8 +10,9 @@ database_name = "social-battery-db"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 migrations_dir = "db/migrations"
 
-# OPENAI_API_KEY 不寫在這裡。用下列指令設成 secret：
+# API Key 一律不寫在這裡。用下列指令設成 secret：
 #   wrangler pages secret put OPENAI_API_KEY
+#   wrangler pages secret put ELEVENLABS_API_KEY   # Track D 語音輸入，選配
 # 本機開發放在 .dev.vars（已被 .gitignore 忽略）。
 [vars]
 OPENAI_MODEL = "gpt-4o-mini"

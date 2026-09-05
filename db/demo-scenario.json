@@ -12,6 +12,61 @@
   },
   "activities": [
     {
+      "dayOffset": -5,
+      "time": "19:00",
+      "type": "party",
+      "headcount": 20,
+      "familiarity": 2,
+      "durationMinutes": 180,
+      "predictedDrain": 48,
+      "actualDrain": 68,
+      "note": "回顧用：系統低估了 20 個百分點——派對是小葉最容易被低估的類型"
+    },
+    {
+      "dayOffset": -4,
+      "time": "12:30",
+      "type": "meal",
+      "headcount": 3,
+      "familiarity": 5,
+      "durationMinutes": 90,
+      "predictedDrain": 9,
+      "actualDrain": 6,
+      "note": "回顧用：跟最熟的人吃飯其實更輕鬆，系統高估了"
+    },
+    {
+      "dayOffset": -3,
+      "time": "10:00",
+      "type": "meeting",
+      "headcount": 7,
+      "familiarity": 3,
+      "durationMinutes": 60,
+      "predictedDrain": 18,
+      "actualDrain": 24,
+      "note": "回顧用：會議也略被低估"
+    },
+    {
+      "dayOffset": -2,
+      "time": "14:00",
+      "type": "class",
+      "headcount": 35,
+      "familiarity": 2,
+      "durationMinutes": 120,
+      "predictedDrain": 20,
+      "actualDrain": 18,
+      "note": "回顧用：上課的預測相當準"
+    },
+    {
+      "dayOffset": -1,
+      "time": "18:30",
+      "type": "meal",
+      "headcount": 5,
+      "familiarity": 3,
+      "durationMinutes": 90,
+      "predictedDrain": 15,
+      "actualDrain": 15,
+      "note": "回顧用：完全命中"
+    },
+    {
       "dayOffset": 0,
       "time": "08:30",
       "type": "meeting",
@@ -106,6 +161,7 @@
       3,
       4
     ],
-    "explanation": "容量 58，睡一覺回充 80%（見 lib/battery.ts）。D+2 迎新共消耗 76 -> 剩 0%；D+3 起床只剩 46%，就算只有一堂課也掉到 28%；D+4 三場連續 -> 剩 10%。三天連續低於 30% 門檻，且 D+3 的低電量純粹是前一天累積來的——這正是要在 demo 講的故事。"
+    "explanation": "容量 58，睡一覺回充 80%（見 lib/battery.ts）。D+2 迎新共消耗 76 -> 剩 0%；D+3 起床只剩 46%，就算只有一堂課也掉到 28%；D+4 三場連續 -> 剩 10%。三天連續低於 30% 門檻，且 D+3 的低電量純粹是前一天累積來的——這正是要在 demo 講的故事。 另外附了 5 筆過去 5 天的已回報紀錄（dayOffset 為負），讓 /review 回顧頁在 demo 當天就有內容：派對被低估 20 個百分點是最明顯的發現。",
+    "pastReportedCount": 5
   }
 }
