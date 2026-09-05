@@ -11,6 +11,7 @@
 - Next.js 14 (App Router) + TypeScript 5.x
 - Tailwind CSS 3.x + shadcn/ui
 - Drizzle ORM + Cloudflare D1
+- **AI：Cloudflare Workers AI（主要）**，Groq（備援），OpenAI（選配）
 - Framer Motion（動畫）
 - Zod（驗證）
 - 部署：Cloudflare Pages（`@cloudflare/next-on-pages`）
@@ -69,7 +70,8 @@ git worktree add ../track-c-ai-prompt track-c-ai-prompt
 ### 0.5 安全規範（每個 AI 呼叫的 prompt 都要包含）
 - 絕不提供醫療診斷或危機處置建議
 - 偵測到自傷/自殺/危機關鍵字時，回傳制式文字：「這聽起來很不容易，建議尋求專業心理協助或撥打安心專線 1925」，不自行處理
-- OpenAI API Key 只能在 server-side 讀取（`process.env.OPENAI_API_KEY`），不可出現在任何 client component
+- 主要 AI 走 Cloudflare Workers AI 的 `AI` binding，**沒有 API Key 需要管理**（binding 只存在於 server 端）
+- 備援/選配的 `GROQ_API_KEY`、`OPENAI_API_KEY`、`ELEVENLABS_API_KEY` 只能在 server-side 讀取，不可出現在任何 client component
 
 ---
 
@@ -102,9 +104,19 @@ git worktree add ../track-c-ai-prompt track-c-ai-prompt
 ### A4. 電量預測 API
 ```
 建立 POST /api/predict-drain，符合 /lib/types.ts 的 DrainPredictionRequest / DrainPredictionResponse。
-呼叫 OpenAI API (gpt-4o-mini)，prompt 需包含第 0.5 節安全規範。
+
+AI 供應商順序（lib/ai.ts 依序嘗試，第一個成功的就採用）：
+1. Cloudflare Workers AI（主要）— 用 wrangler.toml 的 [ai] binding，
+   同一個 Cloudflare 帳號內建，不需要另外申請 API Key，免費額度每天 10,000 Neurons。
+   預設模型 @cf/meta/llama-3.3-70b-instruct-fp8-fast（中文品質較好），
+   可用 WORKERS_AI_MODEL 覆寫成 @cf/meta/llama-3.1-8b-instruct 省額度。
+2. Groq（備援）— 免費且推論極快，OpenAI 相容介面，設 GROQ_API_KEY 即啟用。
+3. OpenAI（選配）— 若活動現場有發 credits 再設 OPENAI_API_KEY 即可自動接上。
+
+prompt 需包含第 0.5 節安全規範。
 要求 AI 只回傳 JSON：{ "predictedDrain": number, "reason": string }。
-用 Zod 驗證輸入與輸出，若 AI 回傳格式錯誤要有 fallback（用簡單規則計算一個預設值，避免整個功能掛掉）。
+用 Zod 驗證輸入與輸出，若全部供應商都失敗或格式錯誤，要退回規則式估算
+（lib/drain-rules.ts），避免整個功能掛掉。
 ```
 
 ### A5. 活動 CRUD API
@@ -123,7 +135,7 @@ git worktree add ../track-c-ai-prompt track-c-ai-prompt
 ### A7. 資安與部署設定
 ```
 1. 確認所有 API routes 都用 Zod 驗證輸入。
-2. 產生 wrangler.toml，設定 D1 binding 與環境變數（OPENAI_API_KEY 設為 secret）。
+2. 產生 wrangler.toml，設定 D1 binding 與 [ai] binding；備援/選配的 API Key 設為 secret。
 3. 撰寫 README 部署步驟（wrangler pages deploy）。
 4. 加上簡單的 rate limiting middleware，避免 API 被連續呼叫刷爆 credits。
 ```
@@ -227,7 +239,7 @@ ElevenLabs API Key 只能在 server-side 讀取，不可出現在前端。
 在 Track B3 的新增活動表單頂部加入 VoiceInputButton。
 使用者說出類似「明天晚上跟三個朋友吃飯，大概兩小時」，
 呼叫 D2 取得文字後，再用一個簡單的 AI parsing API
-（POST /api/parse-voice-activity，用 OpenAI gpt-4o-mini 把自然語言轉成結構化欄位：
+（POST /api/parse-voice-activity，用 lib/ai.ts 的供應商鏈把自然語言轉成結構化欄位：
 type, headcount, familiarity, durationMinutes, scheduledAt），
 自動帶入表單欄位，使用者可再手動微調後送出。
 此 parsing API 需符合 /lib/types.ts 的 Activity 欄位命名，並用 Zod 驗證輸出。

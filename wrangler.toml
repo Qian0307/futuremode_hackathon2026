@@ -10,9 +10,16 @@ database_name = "social-battery-db"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 migrations_dir = "db/migrations"
 
-# API Key 一律不寫在這裡。用下列指令設成 secret：
-#   wrangler pages secret put OPENAI_API_KEY
+# Workers AI binding —— 主要的 AI 供應商。
+# 跟 D1 同一個 Cloudflare 帳號，不需要申請任何 API Key。
+[ai]
+binding = "AI"
+
+# 備援／選配的 API Key 一律不寫在這裡，用下列指令設成 secret：
+#   wrangler pages secret put GROQ_API_KEY         # 備援，免費且極快
+#   wrangler pages secret put OPENAI_API_KEY       # 選配，現場有發 credits 再設
 #   wrangler pages secret put ELEVENLABS_API_KEY   # Track D 語音輸入，選配
 # 本機開發放在 .dev.vars（已被 .gitignore 忽略）。
 [vars]
-OPENAI_MODEL = "gpt-4o-mini"
+# 想省 Neurons 可改成 "@cf/meta/llama-3.1-8b-instruct"（快但中文較弱）
+WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"

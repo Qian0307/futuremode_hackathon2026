@@ -63,12 +63,15 @@
    │  GET  /api/calendar/:token     iCalendar feed（token 認證）        │
    └───────┬──────────────────────────────────┬────────────────────────┘
            │                                   │
-   ┌───────▼─────────┐               ┌─────────▼──────────┐
-   │  OpenAI         │               │  Cloudflare D1     │
-   │  gpt-4o-mini    │               │  (SQLite)          │
-   │  ElevenLabs STT │               │  Drizzle ORM       │
-   └─────────────────┘               │  users, activities │
-                                     └────────────────────┘
+   ┌───────▼──────────────────┐      ┌─────────▼──────────┐
+   │  lib/ai.ts 供應商鏈       │      │  Cloudflare D1     │
+   │  1. Workers AI (binding) │      │  (SQLite)          │
+   │  2. Groq      (備援)      │      │  Drizzle ORM       │
+   │  3. OpenAI    (選配)      │      │  users, activities │
+   │  全失敗 → 規則式 fallback  │      └────────────────────┘
+   │                          │
+   │  ElevenLabs STT（語音）   │
+   └──────────────────────────┘
 ```
 
 ### 核心資料流：新增一場活動
@@ -83,15 +86,30 @@
         │
         ├─ 1. lib/drain-rules.ts 規則式估算（純計算，零 I/O）
         ├─ 2. 立刻寫入 D1 並回應 201  ← 使用者不用等 AI
-        └─ 3. ctx.waitUntil() 背景呼叫 OpenAI
+        └─ 3. ctx.waitUntil() 背景呼叫 AI（Workers AI → Groq → OpenAI）
                └─ Zod 驗證通過 → 回頭 UPDATE 同一筆的 predicted_drain
                                     │
    前端在 2.5s / 6s refetch ────────┘  → 電池動畫更新
 ```
 
-**為什麼要這樣繞一圈**：同步等 OpenAI 要好幾秒，demo 現場網路不穩時體驗很糟。
+**為什麼要這樣繞一圈**：同步等 LLM 要好幾秒，demo 現場網路不穩時體驗很糟。
 先回規則值再背景修正，使用者永遠是即時的；而且 AI 掛掉時功能不會消失，
 只是停留在規則式估算（回應中的 `source` 欄位會標示 `rule`）。
+
+### AI 供應商：三層 fallback
+
+`lib/ai.ts` 的 `chatJson()` 是所有 AI 呼叫的唯一入口，依序嘗試：
+
+| 順序 | 供應商 | 需要什麼 | 說明 |
+|---|---|---|---|
+| 1 | **Cloudflare Workers AI** | **不需要 API Key** | 走 `wrangler.toml` 的 `[ai]` binding，跟 D1／Pages 同一個帳號。預設模型 `@cf/meta/llama-3.3-70b-instruct-fp8-fast`（中文品質好）。免費額度每天 10,000 Neurons |
+| 2 | Groq | `GROQ_API_KEY` | 免費、推論極快、OpenAI 相容介面 |
+| 3 | OpenAI | `OPENAI_API_KEY` | 現場若有發 credits，設了就自動接上，不用改程式碼 |
+| — | 規則式 fallback | 無 | 全部失敗時走 `lib/drain-rules.ts`，功能不中斷，回應的 `source` 會標示 `rule` |
+
+刻意**不使用**各家的 structured output 參數——支援度不一，不支援時整個呼叫會失敗。
+改用「prompt 明確要求 JSON + 容錯解析 + Zod 驗證 + 規則式 fallback」換取跨供應商的一致行為。
+Workers AI 依模型回傳 `{response}` 或 OpenAI 格式的 `{choices[].message.content}`，兩種都有處理。
 
 ### 電量模型
 
@@ -122,14 +140,14 @@ npx wrangler d1 migrations apply social-battery-db --local
 # 3. 灌入 demo 資料（日期會依執行當天換算）
 npm run db:seed:local
 
-# 4. 設定 API Key（本機用 .dev.vars，已在 .gitignore 中）
-cat > .dev.vars <<'EOF'
-OPENAI_API_KEY=sk-xxxx
-ELEVENLABS_API_KEY=sk_xxxx   # 選配，沒有的話語音按鈕會自動降級
-EOF
-
-# 5. 啟動
+# 4. 啟動（AI 不需要任何設定——Workers AI 走 binding）
 npm run dev          # http://localhost:3000
+
+# 選配：語音輸入與備援 AI 才需要 Key，放在 .dev.vars（已在 .gitignore 中）
+cat > .dev.vars <<'EOF'
+ELEVENLABS_API_KEY=sk_xxxx   # Track D 語音輸入
+GROQ_API_KEY=gsk_xxxx        # AI 備援
+EOF
 ```
 
 ### 要看 demo 資料
@@ -139,8 +157,9 @@ seed 資料掛在 `anonymous_session_id = 'demo-session'` 底下。瀏覽器 con
 document.cookie = "sbm_session=demo-session; path=/"; location.reload();
 ```
 
-### 沒有 API Key 也能跑
-- 沒有 `OPENAI_API_KEY`：自動改用 `lib/drain-rules.ts` 的規則式估算，功能完整不中斷
+### 沒有任何 API Key 也能跑
+- **AI 完全不需要 Key**：Workers AI 走 binding，`wrangler` 登入即可用
+- 連 Workers AI 都連不上時：自動改用 `lib/drain-rules.ts` 的規則式估算，功能完整不中斷
 - 沒有 `ELEVENLABS_API_KEY`：語音按鈕自動收起，表單照常手動填寫
 
 ### ⚠️ WSL + `/mnt/c` 的已知問題
@@ -158,9 +177,10 @@ npx wrangler d1 create social-battery-db
 npx wrangler d1 migrations apply social-battery-db --remote
 npm run db:seed:remote          # demo 資料，正式上線可略過
 
-# 2. 設定 secret（不寫進 wrangler.toml，也不進 git）
-npx wrangler pages secret put OPENAI_API_KEY
-npx wrangler pages secret put ELEVENLABS_API_KEY   # 選配
+# 2. 設定 secret（AI 主線不需要；以下都是選配）
+npx wrangler pages secret put ELEVENLABS_API_KEY   # Track D 語音輸入
+npx wrangler pages secret put GROQ_API_KEY         # AI 備援
+npx wrangler pages secret put OPENAI_API_KEY       # 現場有發 credits 再設
 
 # 3. 建置 + 部署
 npm run deploy
@@ -171,7 +191,8 @@ npm run deploy
 
 ### 部署檢查清單
 - [ ] `wrangler.toml` 的 `database_id` 已換成真實 id
-- [ ] `OPENAI_API_KEY` 已設為 Pages secret，且**沒有**出現在任何 client component
+- [ ] Pages 專案已啟用 Workers AI binding（`wrangler.toml` 的 `[ai]`）
+- [ ] 所有 API Key 都是 Pages secret，且**沒有**出現在任何 client component
 - [ ] Pages 專案 compatibility flags 含 `nodejs_compat`
 - [ ] migration 已套用到 remote D1
 - [ ] Apple 行事曆訂閱需要公開網址，部署後要重新產生一次訂閱連結
@@ -182,7 +203,9 @@ npm run deploy
 
 | 項目 | 用途 | 來源 |
 |---|---|---|
-| **OpenAI API**（`gpt-4o-mini`） | 電量消耗預測、一週風險預警、語音語意解析、排程建議、週回顧 | https://platform.openai.com |
+| **Cloudflare Workers AI**（`@cf/meta/llama-3.3-70b-instruct-fp8-fast`） | 主要 LLM：電量消耗預測、一週風險預警、語音語意解析、排程建議、週回顧 | https://developers.cloudflare.com/workers-ai |
+| **Groq**（`llama-3.3-70b-versatile`） | AI 備援（選配） | https://groq.com |
+| **OpenAI API**（`gpt-4o-mini`） | AI 選配，設了 Key 就自動接上 | https://platform.openai.com |
 | **ElevenLabs Speech-to-Text**（`scribe_v1`） | Track D 語音輸入轉文字 | https://elevenlabs.io |
 | **Next.js 14**（App Router） | 前後端同一專案，Route Handlers 走 edge runtime | https://nextjs.org |
 | **Cloudflare D1** | SQLite-based 資料庫 | https://developers.cloudflare.com/d1 |
@@ -265,8 +288,10 @@ scripts/
 
 ```bash
 npm run typecheck        # 全專案型別檢查
-npm run test:prompts     # 10 組活動的預測區分度測試（離線可跑）
-OPENAI_API_KEY=sk-... npm run test:prompts   # 連真實 AI 一起測
+npm run test:prompts     # 10 組活動的預測區分度測試（離線可跑，測規則式基準）
+
+# 測真實 AI（含 Workers AI）——要先 npm run dev
+SBM_BASE_URL=http://localhost:3000 npm run test:prompts
 npm run db:seed:generate # 驗證 demo 資料仍會觸發預期的低電量預警
 ```
 
@@ -278,5 +303,6 @@ npm run db:seed:generate # 驗證 demo 資料仍會觸發預期的低電量預�
 ## 授權
 
 MIT License，見 [LICENSE](./LICENSE)。
-#   f u t u r e m o d e _ h a c k a t h o n 2 0 2 6  
+#   f u t u r e m o d e _ h a c k a t h o n 2 0 2 6 
+ 
  

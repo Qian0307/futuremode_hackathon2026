@@ -1,6 +1,6 @@
 import { fail, ok, parseBody } from "@/lib/api";
 import { runInBackground } from "@/lib/background";
-import { hasOpenAIKey } from "@/lib/ai";
+import { hasAnyProvider } from "@/lib/ai";
 import { getCurrentUser } from "@/lib/current-user";
 import { ruleBasedDrain } from "@/lib/drain-rules";
 import { predictDrain } from "@/lib/predict";
@@ -54,8 +54,8 @@ export async function POST(req: Request) {
     return fail("新增活動失敗，請稍後再試", 500);
   }
 
-  // 2. 沒有 API key 就不用排背景工作，前端也不必等後續更新
-  const willRefine = await hasOpenAIKey();
+  // 2. 沒有任何 AI 供應商就不用排背景工作，前端也不必等後續更新
+  const willRefine = await hasAnyProvider();
   if (willRefine) {
     await runInBackground("refine-drain", async () => {
       const refined = await predictDrain(predictionInput);

@@ -2,8 +2,17 @@
  * Track C1.3：prompt 區分度測試。
  *
  * 用法：
- *   npm run test:prompts            # 只測規則式基準（離線可跑）
- *   OPENAI_API_KEY=sk-... npm run test:prompts   # 同時測真實 AI 輸出
+ *   npm run test:prompts
+ *     只測規則式基準（離線可跑，無需任何 Key）
+ *
+ *   SBM_BASE_URL=http://localhost:3000 npm run test:prompts
+ *     透過跑起來的 dev server 打 /api/predict-drain，會測到完整的供應商鏈
+ *     （Cloudflare Workers AI → Groq → OpenAI）。這是唯一能測到 Workers AI 的方式，
+ *     因為 AI binding 只存在於 Worker runtime 裡，Node 腳本拿不到。
+ *
+ *   GROQ_API_KEY=gsk-... npm run test:prompts
+ *   OPENAI_API_KEY=sk-... npm run test:prompts
+ *     直接打該供應商的 API（OpenAI 相容介面）
  *
  * 通過條件：10 組活動的預測值必須有明顯區分度
  *   - 最大值與最小值差距 >= 40
@@ -92,14 +101,44 @@ const CASES: Case[] = [
 
 const RANGES = { low: [0, 25], mid: [25, 65], high: [65, 100] } as const;
 
-async function callOpenAI(req: DrainPredictionRequest): Promise<{ predictedDrain: number; reason: string } | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+type Prediction = { predictedDrain: number; reason: string };
+
+/** 透過跑起來的 app 打 /api/predict-drain——會走完整的供應商鏈，含 Workers AI。 */
+async function callViaApi(baseUrl: string, req: DrainPredictionRequest): Promise<(Prediction & { source?: string }) | null> {
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/predict-drain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+      console.error(`  API 回應 ${res.status}: ${await res.text()}`);
+      return null;
+    }
+    return (await res.json()) as Prediction & { source?: string };
+  } catch (err) {
+    console.error("  API 呼叫失敗:", err);
+    return null;
+  }
+}
+
+/** 直接打 OpenAI 相容介面（Groq 或 OpenAI）。 */
+async function callDirect(req: DrainPredictionRequest): Promise<(Prediction & { source?: string }) | null> {
+  const groqKey = process.env.GROQ_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  const config = groqKey
+    ? { key: groqKey, baseUrl: "https://api.groq.com/openai/v1", model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile", label: "Groq" }
+    : openaiKey
+      ? { key: openaiKey, baseUrl: "https://api.openai.com/v1", model: process.env.OPENAI_MODEL ?? "gpt-4o-mini", label: "OpenAI" }
+      : null;
+  if (!config) return null;
+
+  const res = await fetch(`${config.baseUrl}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.key}` },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      model: config.model,
       temperature: 0.3,
       max_tokens: 200,
       response_format: { type: "json_object" },
@@ -110,7 +149,7 @@ async function callOpenAI(req: DrainPredictionRequest): Promise<{ predictedDrain
     }),
   });
   if (!res.ok) {
-    console.error(`  OpenAI 回應 ${res.status}: ${await res.text()}`);
+    console.error(`  ${config.label} 回應 ${res.status}: ${await res.text()}`);
     return null;
   }
   const data = (await res.json()) as { choices: { message: { content: string } }[] };
@@ -160,17 +199,34 @@ async function main() {
   const ruleReasons = CASES.map((c) => ruleBasedDrain(c.req).reason);
   let passed = evaluate("規則式 fallback（lib/drain-rules.ts）", ruleValues, ruleReasons);
 
-  if (process.env.OPENAI_API_KEY) {
+  const baseUrl = process.env.SBM_BASE_URL;
+  const hasDirectKey = Boolean(process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY);
+
+  if (baseUrl || hasDirectKey) {
     const aiValues: number[] = [];
     const aiReasons: string[] = [];
+    const sources = new Set<string>();
+
     for (const c of CASES) {
-      const result = await callOpenAI(c.req);
+      const result = baseUrl ? await callViaApi(baseUrl, c.req) : await callDirect(c.req);
       aiValues.push(result?.predictedDrain ?? -1);
       aiReasons.push(result?.reason ?? "(呼叫失敗)");
+      if (result?.source) sources.add(result.source);
     }
-    passed = evaluate("AI（lib/prompts/predict-drain.ts）", aiValues, aiReasons) && passed;
+
+    const label = baseUrl
+      ? `AI via ${baseUrl}/api/predict-drain${sources.size ? `（source: ${Array.from(sources).join(", ")}）` : ""}`
+      : "AI（直接呼叫供應商）";
+    passed = evaluate(label, aiValues, aiReasons) && passed;
+
+    if (baseUrl && sources.size === 1 && sources.has("rule")) {
+      console.error("\n✗ 全部都回 source=rule，代表沒有任何 AI 供應商成功——請檢查 Workers AI binding 或 API Key");
+      passed = false;
+    }
   } else {
-    console.log("\n（未設定 OPENAI_API_KEY，跳過真實 AI 測試）");
+    console.log("\n（未設定 SBM_BASE_URL / GROQ_API_KEY / OPENAI_API_KEY，跳過真實 AI 測試）");
+    console.log("提示：要測 Cloudflare Workers AI，先 npm run dev，再用");
+    console.log("      SBM_BASE_URL=http://localhost:3000 npm run test:prompts");
   }
 
   if (!passed) process.exit(1);
