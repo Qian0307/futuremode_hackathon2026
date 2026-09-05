@@ -157,8 +157,11 @@ export default function TodayPage() {
 
         {activities.length === 0 ? (
           <Card>
-            <CardContent className="p-6 text-center text-sm text-muted-foreground">
-              空白的一天。要不要先把接下來的活動加進來看看？
+            <CardContent className="space-y-3 p-6 text-center text-sm text-muted-foreground">
+              <p>空白的一天。要不要先把接下來的活動加進來看看？</p>
+              <a href="/week?demo=1" className="inline-block text-xs text-mint-600 underline underline-offset-4">
+                或先看一份示範情境
+              </a>
             </CardContent>
           </Card>
         ) : (

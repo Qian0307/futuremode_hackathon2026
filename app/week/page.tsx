@@ -16,23 +16,49 @@ export default function WeekPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [loadingWarnings, setLoadingWarnings] = React.useState(false);
 
+  /**
+   * 兩段式載入：先秒開電池與行程（?warnings=0，不打 AI），
+   * 再背景抓 AI 預警補上去。
+   * 這頁是產品最重要的畫面，讓它空白 4 秒等 AI 是很糟的第一印象。
+   */
   React.useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
-        const res = await fetchWeek();
-        setData(res);
+        const fast = await fetchWeek({ warnings: false });
+        if (cancelled) return;
+        setData(fast);
         setSelected(todayInTaipei());
+        setLoading(false);
+
+        // 沒有低電量日就不用再打一次 AI
+        if (!fast.days.some((d) => d.isLow)) return;
+
+        setLoadingWarnings(true);
+        const withWarnings = await fetchWeek();
+        if (cancelled) return;
+        setData(withWarnings);
       } catch (err) {
+        if (cancelled) return;
         if (err instanceof UnauthorizedError) {
           router.replace("/onboarding");
           return;
         }
         setError(err instanceof Error ? err.message : "讀取失敗");
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingWarnings(false);
+        }
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   if (loading) return <p className="py-24 text-center text-muted-foreground">載入中…</p>;
@@ -96,9 +122,18 @@ export default function WeekPage() {
                       前一天的赤字帶過來的
                     </p>
                   )}
-                  <p className="text-sm leading-relaxed text-foreground/80">
-                    {day.warning ?? "這天的電量偏低，記得留一點獨處時間。"}
-                  </p>
+                  {day.warning ? (
+                    <p className="text-sm leading-relaxed text-foreground/80">{day.warning}</p>
+                  ) : loadingWarnings ? (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="h-3 w-3 animate-pulse rounded-full bg-coral-300" />
+                      AI 正在看你這天的行程…
+                    </p>
+                  ) : (
+                    <p className="text-sm leading-relaxed text-foreground/80">
+                      這天的電量偏低，記得留一點獨處時間。
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

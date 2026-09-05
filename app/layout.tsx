@@ -5,9 +5,32 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
+const SITE_URL = "https://social-battery-meter.pages.dev";
+const DESCRIPTION =
+  "像管理電池一樣管理你的社交能量：AI 預測每場社交活動的消耗，" +
+  "並把前一天沒補回來的赤字帶到隔天，讓你在 burnout 發生之前就看見它。";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "社交電量計 · Social Battery Meter",
-  description: "像管理電池一樣管理你的社交能量：預測每場活動的消耗，提早避開 burnout。",
+  description: DESCRIPTION,
+  applicationName: "社交電量計",
+  // 圖示放 public/ 而不是 app/：App Router 會把 app/icon.svg 當成一條 route，
+  // 而 next-on-pages 要求所有 route 都是 edge runtime，會直接讓建置失敗。
+  icons: { icon: "/icon.svg", shortcut: "/icon.svg", apple: "/icon.svg" },
+  openGraph: {
+    type: "website",
+    locale: "zh_TW",
+    url: SITE_URL,
+    siteName: "社交電量計",
+    title: "社交電量計 · Social Battery Meter",
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary",
+    title: "社交電量計 · Social Battery Meter",
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {

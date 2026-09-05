@@ -172,6 +172,7 @@ document.cookie = "sbm_session=demo-session; path=/"; location.reload();
 ## 4. 部署（Cloudflare Pages）
 
 **正式站台：https://social-battery-meter.pages.dev**
+**示範情境（一鍵載入）：https://social-battery-meter.pages.dev/week?demo=1**
 
 ### 日常更新（初次設定完成後，只需要這一行）
 
@@ -236,11 +237,8 @@ curl -s -X POST $URL/api/predict-drain -H 'Content-Type: application/json' \
 curl -s $URL/api/voice-to-text -H "Cookie: sbm_session=demo-session"
 ```
 
-瀏覽器 console 執行下面這行，就會看到完整的 demo 情境：
-
-```js
-document.cookie = "sbm_session=demo-session; path=/"; location.reload();
-```
+直接開 `/week?demo=1` 就會載入完整的 demo 情境（middleware 會設好匿名 session），
+不需要手動在 console 設 cookie。
 
 ### 部署檢查清單
 - [x] `wrangler.toml` 的 `database_id` 已填入真實 id

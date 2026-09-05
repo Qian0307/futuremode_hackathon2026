@@ -54,6 +54,18 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* 第一次進站的人在這裡才第一次知道這是什麼——沒有這段，
+          使用者會直接被丟進 6 題問卷，完全不知道自己在填什麼 */}
+      {step === 0 && !profile && !submitting && (
+        <div className="rounded-3xl bg-white/60 p-5 text-center backdrop-blur">
+          <p className="text-sm font-semibold text-foreground">社交電量計</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            像手機電池一樣管理你的社交能量。先用 6 題算出你的基礎電量，
+            之後每場聚會、會議、約會會消耗多少，都幫你先算好。
+          </p>
+        </div>
+      )}
+
       {/* 進度條 */}
       <div className="space-y-2">
         <div className="h-2 w-full overflow-hidden rounded-full bg-white/70">
@@ -115,11 +127,22 @@ export default function OnboardingPage() {
                 </Card>
               ))}
             </div>
-            {step > 0 && (
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setStep(step - 1)}>
-                ← 回上一題
-              </Button>
-            )}
+            <div className="flex items-center justify-between pt-1">
+              {step > 0 ? (
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setStep(step - 1)}>
+                  ← 回上一題
+                </Button>
+              ) : (
+                <span />
+              )}
+              {/* 讓第一次來的人（例如評審）可以跳過問卷，直接看有資料的完整樣子 */}
+              <a
+                href="/week?demo=1"
+                className="rounded-full px-3 py-1.5 text-xs text-mint-600 underline-offset-4 hover:underline"
+              >
+                先看示範情境 →
+              </a>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

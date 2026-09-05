@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE } from "@/lib/session";
 
 /**
  * 簡易 rate limiting，避免 demo 期間 API 被連續呼叫刷爆 OpenAI credits。
@@ -37,8 +38,28 @@ function limitFor(pathname: string): number | null {
   return hit ? hit.limit : null;
 }
 
+/** 示範情境的匿名 session id，對應 db/demo-scenario.json 的 persona。 */
+const DEMO_SESSION_ID = "demo-session";
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // ?demo=1 一鍵載入示範情境。
+  // 沒有這個入口的話，第一次打開網站的人（例如評審）只會看到一個空的 app——
+  // 不能指望他們去開 console 手動設 cookie。
+  if (req.nextUrl.searchParams.get("demo") === "1") {
+    const url = req.nextUrl.clone();
+    url.searchParams.delete("demo");
+    const res = NextResponse.redirect(url);
+    res.cookies.set(SESSION_COOKIE, DEMO_SESSION_ID, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    return res;
+  }
   // 日曆 feed 由 Apple/Google 行事曆定時輪詢，且不帶 cookie，不套用限流。
   // 但取得訂閱網址的 /api/calendar/subscribe 仍然要限流。
   if (pathname.startsWith("/api/calendar/") && pathname !== "/api/calendar/subscribe") {
@@ -75,5 +96,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  // /api/* 走限流；頁面路徑則是為了處理 ?demo=1。
+  // 排除 _next 靜態資源與 favicon，避免無謂的 middleware 執行。
+  matcher: ["/api/:path*", "/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
