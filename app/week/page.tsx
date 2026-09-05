@@ -8,6 +8,7 @@ import { BatteryGauge } from "@/components/BatteryGauge";
 import { CalendarSubscribe } from "@/components/CalendarSubscribe";
 import { Card, CardContent } from "@/components/ui/card";
 import { ACTIVITY_META, formatMonthDay, formatTime, formatWeekday } from "@/lib/activity-meta";
+import { OVERNIGHT_RECOVERY_RATE } from "@/lib/battery";
 import { fetchWeek, todayInTaipei, UnauthorizedError, type DaySummaryDTO, type WeekResponse } from "@/lib/client-api";
 
 export default function WeekPage() {
@@ -72,6 +73,9 @@ export default function WeekPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">接下來這一週</h1>
+        <p className="mt-1 text-xs leading-relaxed text-mint-600">
+          睡一覺只回充基礎電量的 {Math.round(OVERNIGHT_RECOVERY_RATE * 100)}%——補不滿的赤字會帶到隔天。
+        </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {lowDays.length === 0
             ? "整週的電量都在安全範圍，看起來安排得不錯。"
@@ -118,9 +122,11 @@ export default function WeekPage() {
                     {formatMonthDay(day.date)}（{formatWeekday(day.date)}）· 起床 {day.startBattery}% → 剩 {day.remainingBattery}%
                   </p>
                   {day.startBattery < data.profile.baseBatteryCapacity && (
-                    <p className="inline-flex items-center rounded-full bg-coral-300/25 px-2 py-0.5 text-[11px] font-medium text-coral-500">
-                      前一天的赤字帶過來的
-                    </p>
+                    <BatteryDerivation
+                      day={day}
+                      previousRemaining={previousRemainingOf(data, day.date)}
+                      capacity={data.profile.baseBatteryCapacity}
+                    />
                   )}
                   {day.warning ? (
                     <p className="text-sm leading-relaxed text-foreground/80">{day.warning}</p>
@@ -142,7 +148,13 @@ export default function WeekPage() {
       )}
 
       {/* 選取那天的細節 */}
-      {selectedDay && <DayDetail day={selectedDay} />}
+      {selectedDay && (
+        <DayDetail
+          day={selectedDay}
+          capacity={data.profile.baseBatteryCapacity}
+          previousRemaining={previousRemainingOf(data, selectedDay.date)}
+        />
+      )}
 
       {/* Apple 日曆訂閱 */}
       <CalendarSubscribe />
@@ -150,7 +162,46 @@ export default function WeekPage() {
   );
 }
 
-function DayDetail({ day }: { day: DaySummaryDTO }) {
+/** 找出前一天的結束電量；是本週第一天就回 null（沒有前一天可以參考）。 */
+function previousRemainingOf(data: WeekResponse, date: string): number | null {
+  const i = data.days.findIndex((d) => d.date === date);
+  return i > 0 ? data.days[i - 1].remainingBattery : null;
+}
+
+/**
+ * 把 simulateWeek() 的算式攤開給使用者看。
+ * 沒有這段，46% 只是一個沒有來源的數字——
+ * 模型是這個產品的核心，但原本畫面上完全看不出它存在。
+ */
+function BatteryDerivation({
+  day,
+  previousRemaining,
+  capacity,
+}: {
+  day: DaySummaryDTO;
+  previousRemaining: number | null;
+  capacity: number;
+}) {
+  if (previousRemaining === null) return null;
+  const recharge = Math.round(capacity * OVERNIGHT_RECOVERY_RATE);
+
+  return (
+    <p className="rounded-xl bg-white/70 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-coral-500">
+      前一天剩 {previousRemaining}% + 睡眠回充 {recharge}%（{capacity}% × {Math.round(OVERNIGHT_RECOVERY_RATE * 100)}%）
+      = 起床 {day.startBattery}%
+    </p>
+  );
+}
+
+function DayDetail({
+  day,
+  capacity,
+  previousRemaining,
+}: {
+  day: DaySummaryDTO;
+  capacity: number;
+  previousRemaining: number | null;
+}) {
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold text-foreground/70">
@@ -159,6 +210,9 @@ function DayDetail({ day }: { day: DaySummaryDTO }) {
           起床 {day.startBattery}% → 剩 {day.remainingBattery}%
         </span>
       </h2>
+      {day.startBattery < capacity && (
+        <BatteryDerivation day={day} previousRemaining={previousRemaining} capacity={capacity} />
+      )}
       {day.activities.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center text-sm text-muted-foreground">這天沒有安排社交活動，是完整的恢復日。</CardContent>
